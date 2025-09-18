@@ -32,7 +32,7 @@ function App() {
 
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial" }}>
-      <h1>📚 BookTomo</h1>
+      <h1>BookTomo</h1>
       <p>Upload your Goodreads CSV to see your reading stats!</p>
       <input type="file" onChange={handleUpload} />
 

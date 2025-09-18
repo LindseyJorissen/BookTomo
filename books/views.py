@@ -19,10 +19,16 @@ def upload_goodreads(request):
         df["Year Read"] = pd.to_datetime(df["Date Read"], errors="coerce").dt.year
         df_current_year = df[df["Year Read"] == 2025]
 
+        if "My Rating" in df_current_year.columns:
+            rated_books = df_current_year[df_current_year["My Rating"] > 0]
+            avg_rating = round(rated_books["My Rating"].mean(), 2) if not rated_books.empty else 0
+        else:
+            avg_rating = 0
+            
         stats = {
             "total_books": len(df_current_year),
             "total_pages": int(df_current_year["Number of Pages"].fillna(0).sum()) if "Number of Pages" in df_current_year.columns else 0,
-            "avg_rating": round(df_current_year["My Rating"].mean(), 2) if "My Rating" in df_current_year.columns else 0,
+            "avg_rating": avg_rating,
             "top_author": df_current_year["Author"].mode()[0] if "Author" in df_current_year.columns and not df_current_year.empty else None,
         }
 
