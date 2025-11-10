@@ -1,11 +1,11 @@
 import pandas as pd
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+import datetime
 
 @csrf_exempt
 def upload_goodreads(request):
     if request.method == "POST":
-        # Get the uploaded file
         file = request.FILES.get("file")
         if not file:
             return JsonResponse({"error": "No file uploaded"}, status=400)
@@ -15,24 +15,42 @@ def upload_goodreads(request):
         if "Date Read" not in df.columns:
             return JsonResponse({"error": "CSV missing 'Date Read' column"}, status=400)
 
-        # Filtering by year
         df["Year Read"] = pd.to_datetime(df["Date Read"], errors="coerce").dt.year
-        df_current_year = df[df["Year Read"] == 2025]
+        current_year = datetime.date.today().year
+        df_current_year = df[df["Year Read"] == current_year]
 
-        if "My Rating" in df_current_year.columns:
-            rated_books = df_current_year[df_current_year["My Rating"] > 0]
-            avg_rating = round(rated_books["My Rating"].mean(), 2) if not rated_books.empty else 0
-        else:
-            avg_rating = 0
-            
+        def compute_stats(subset):
+            if "My Rating" in subset.columns:
+                rated_books = subset[subset["My Rating"] > 0]
+                avg_rating = round(rated_books["My Rating"].mean(), 2) if not rated_books.empty else 0
+            else:
+                avg_rating = 0
+
+            return {
+                "total_books": len(subset),
+                "total_pages": int(
+                    subset["Number of Pages"].fillna(0).sum()
+                ) if "Number of Pages" in subset.columns else 0,
+                "avg_rating": avg_rating,
+                "top_author": subset["Author"].mode()[0]
+                if "Author" in subset.columns and not subset.empty
+                else None,
+            }
+
+        yearly_counts = (
+            df["Year Read"]
+            .dropna()
+            .value_counts()
+            .sort_index()
+            .to_dict()
+        )
+
         stats = {
-            "total_books": len(df_current_year),
-            "total_pages": int(df_current_year["Number of Pages"].fillna(0).sum()) if "Number of Pages" in df_current_year.columns else 0,
-            "avg_rating": avg_rating,
-            "top_author": df_current_year["Author"].mode()[0] if "Author" in df_current_year.columns and not df_current_year.empty else None,
+            "overall": compute_stats(df),
+            "this_year": compute_stats(df_current_year),
+            "yearly_books": yearly_counts,
         }
 
         return JsonResponse(stats)
 
-    # No POST request error
     return JsonResponse({"error": "POST request required"}, status=400)

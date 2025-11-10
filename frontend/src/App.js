@@ -1,8 +1,12 @@
 import { useState } from "react";
+import "./App.css";
+import YearlyBookChart from "./YearlyBookChart";
+
 
 function App() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
+  const [view, setView] = useState("overall"); // "overall" or "this_year"
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];
@@ -34,21 +38,58 @@ function App() {
     <div style={{ padding: "2rem", fontFamily: "Arial" }}>
       <h1>BookTomo</h1>
       <p>Upload your Goodreads CSV to see your reading stats!</p>
-      <input type="file" onChange={handleUpload} />
+      <label className="upload-button">
+  Upload CSV
+  <input
+    type="file"
+    onChange={handleUpload}
+    style={{ display: "none" }}
+  />
+</label>
+
 
       {error && <p style={{ color: "red" }}>Error: {error}</p>}
 
-      {stats && (
-        <div style={{ marginTop: "1rem" }}>
-          <h2>Your Stats</h2>
-          <p>Total books: {stats.total_books}</p>
-          <p>Total pages: {stats.total_pages}</p>
-          <p>Average rating: {stats.avg_rating}</p>
-          <p>Top author: {stats.top_author}</p>
-        </div>
-      )}
-    </div>
-  );
-}
+{stats && (
+  <div className="stats-container">
+    <div className="stats-box">
+      <div style={{ marginBottom: "1rem" }}>
+        <button
+          className="small-button"
+          onClick={() => setView("overall")}
+          style={{
+            fontWeight: view === "overall" ? "bold" : "normal",
+            marginRight: "1rem",
+          }}
+        >
+          Overall
+        </button>
+        <button
+          className="small-button"
+          onClick={() => setView("this_year")}
+          style={{
+            fontWeight: view === "this_year" ? "bold" : "normal",
+          }}
+        >
+          This Year
+        </button>
+      </div>
 
+      <h2>{view === "overall" ? "All-time stats" : "This Year’s stats"}</h2>
+      <p>Total books: {stats[view].total_books}</p>
+      <p>Total pages: {stats[view].total_pages}</p>
+      <p>Average rating: {stats[view].avg_rating}</p>
+      <p>Top author: {stats[view].top_author || "N/A"}</p>
+    </div>
+
+    {stats.yearly_books && (
+      <div className="chart-box">
+        <YearlyBookChart yearlyData={stats.yearly_books} />
+      </div>
+    )}
+    </div>
+)}
+</div>
+);
+}
 export default App;
