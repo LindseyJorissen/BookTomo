@@ -8,7 +8,7 @@ It takes your reading data (from StoryGraph or a Goodreads CSV export) and turns
 
 
 
-## ✨ Features
+## Features
 
 - Upload your Goodreads CSV or connect StoryGraph  
 
