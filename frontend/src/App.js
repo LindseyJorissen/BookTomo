@@ -82,11 +82,16 @@ function App() {
       <p>Top author: {stats[view].top_author || "N/A"}</p>
     </div>
 
-    {stats.yearly_books && (
-      <div className="chart-box">
-        <YearlyBookChart yearlyData={stats.yearly_books} />
-      </div>
+    <div className="chart-box">
+    {view === "overall" && stats.yearly_books && (
+        <YearlyBookChart yearlyData={stats.yearly_books} type="year" />
     )}
+
+    {view === "this_year" && stats.monthly_books && (
+        <YearlyBookChart yearlyData={stats.monthly_books} type="month" />
+    )}
+    </div>
+
     </div>
 )}
 </div>
