@@ -14,7 +14,6 @@ function YearlyBookChart({ yearlyData, type }) {
     return <p>No data available.</p>;
   }
 
-  // Convert data object {2020: 12, 2021: 7, ...} or {1: 4, 2: 3, ...} to array
   const chartData = Object.entries(yearlyData).map(([key, value]) => ({
     label:
       type === "month"

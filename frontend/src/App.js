@@ -1,11 +1,12 @@
 import { useState } from "react";
 import "./App.css";
 import YearlyBookChart from "./YearlyBookChart";
+import PublicationVsReadChart from "./PublicationVsReadChart";
 
 function App() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
-  const [view, setView] = useState("overall"); // "overall" or "this_year"
+  const [view, setView] = useState("overall");
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];
@@ -99,15 +100,36 @@ function App() {
             <p>Top author: {stats[view].top_author || "N/A"}</p>
           </div>
 
-          <div className="chart-box">
-            {view === "overall" && stats.yearly_books && (
-              <YearlyBookChart yearlyData={stats.yearly_books} type="year" />
-            )}
+<div className="chart-box">
+  {view === "overall" && stats.yearly_books && (
+    <YearlyBookChart yearlyData={stats.yearly_books} type="year" />
+  )}
 
-            {view === "this_year" && stats.monthly_books && (
-              <YearlyBookChart yearlyData={stats.monthly_books} type="month" />
-            )}
-          </div>
+  {view === "this_year" && stats.monthly_books && (
+    <YearlyBookChart yearlyData={stats.monthly_books} type="month" />
+  )}
+</div>
+
+<div className="chart-box">
+  {view === "overall" &&
+    stats.scatter_publication_vs_read_all &&
+    stats.scatter_publication_vs_read_all.length > 0 && (
+      <PublicationVsReadChart
+        data={stats.scatter_publication_vs_read_all}
+        type="year"
+      />
+    )}
+
+  {view === "this_year" &&
+    stats.scatter_publication_vs_read_year &&
+    stats.scatter_publication_vs_read_year.length > 0 && (
+      <PublicationVsReadChart
+        data={stats.scatter_publication_vs_read_year}
+        type="month"
+      />
+    )}
+</div>
+
         </div>
       )}
     </div>

@@ -20,6 +20,18 @@ p {
   width: fit-content;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1);
 }
+
+.chart-box {
+  margin-top: 1rem;
+  background-color: #ebe8dd;
+  padding: 1.5rem;
+  border-radius: 30px;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  min-width: 400px;
+  max-width: 600px;
+  height: 350px;
+}
 .upload-button {
   background: #ebe8dd;
   color: #000000;
@@ -65,16 +77,6 @@ p {
   flex-wrap: wrap;
 }
 
-.chart-box {
-  background-color: #ebe8dd;
-  padding: 1.5rem;
-  border-radius: 30px;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1);
-  flex: 1;
-  min-width: 400px;
-  max-width: 600px;
-  height: 350px;
-}
 
 .reset-button {
   background: #ebe8dd;
