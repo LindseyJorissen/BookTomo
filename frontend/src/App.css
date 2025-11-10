@@ -75,3 +75,19 @@ p {
   max-width: 600px;
   height: 350px;
 }
+
+.reset-button {
+  background: #ebe8dd;
+  color: #000;
+  border: none;
+  cursor: pointer;
+  border-radius: 30px;
+  width: 160px;
+  height: 45px;
+  transition: 0.3s;
+}
+
+.reset-button:hover {
+  background-color: #a39988;
+  color: #fff;
+}
