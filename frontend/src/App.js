@@ -9,6 +9,26 @@ function App() {
   const [view, setView] = useState("overall");
   const [showTutorial, setShowTutorial] = useState(false);
 
+const getReadingOverTimeText = () => {
+const s = stats[view];
+if (!s) return "";
+
+return view === "overall"
+ ? `Across your entire reading history, you've finished ${s.total_books} books.
+ The chart above shows how your reading ebbs and flows over time.`
+ : `So far this year, you've finished ${s.total_books} books.
+ Your reading activity varies across the months.`;
+};
+
+const getPublicationTimingText = () => {
+const s = stats[view];
+if (!s) return "";
+    return view === "overall"
+      ? `Your reading spans a wide range of publication years.
+         ${s.top_author ? `One author you return to often is ${s.top_author}.` : ""}`
+      : `This year’s reading includes books from different publication periods.
+         ${s.top_author ? `${s.top_author} appears most frequently.` : ""}`;
+  };
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];
@@ -87,6 +107,8 @@ function App() {
 
       {stats && (
         <div className="stats-container">
+
+        {/* left column */}
           <div className="stats-box">
             <div style={{ marginBottom: "1rem" }}>
               <button
@@ -127,20 +149,23 @@ function App() {
 
           </div>
 
+<div className="right-grid">
+{/* charts right column*/}
+
+{/* yearly books chart */}
 <div className="chart-box">
   {view === "overall" && stats.yearly_books && (
     <YearlyBookChart yearlyData={stats.yearly_books} type="year" />
   )}
-
   {view === "this_year" && stats.monthly_books && (
     <YearlyBookChart yearlyData={stats.monthly_books} type="month" />
   )}
 </div>
 
+{/* publication vs read chart */}
 <div className="chart-box">
   {view === "overall" &&
-    stats.scatter_publication_vs_read_all &&
-    stats.scatter_publication_vs_read_all.length > 0 && (
+    stats.scatter_publication_vs_read_all?.length > 0 && (
       <PublicationVsReadChart
         data={stats.scatter_publication_vs_read_all}
         type="year"
@@ -148,8 +173,7 @@ function App() {
     )}
 
   {view === "this_year" &&
-    stats.scatter_publication_vs_read_year &&
-    stats.scatter_publication_vs_read_year.length > 0 && (
+    stats.scatter_publication_vs_read_year?.length > 0 && (
       <PublicationVsReadChart
         data={stats.scatter_publication_vs_read_year}
         type="month"
@@ -157,10 +181,27 @@ function App() {
     )}
 </div>
 
-        </div>
-      )}
+{/* text cards */}
+<div className="info-box">
+    <h3>Reading over time</h3>
+    <p>{getReadingOverTimeText()}</p>
+</div>
+<div className="info-box">
+    <h3>When you read books</h3>
+    <p>{getPublicationTimingText()}</p>
+    </div>
+
+    </div>
+</div>
+)}
+
+
     </div>
   );
 }
 
 export default App;
+
+
+
+
