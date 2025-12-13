@@ -7,6 +7,8 @@ function App() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState("overall");
+  const [showTutorial, setShowTutorial] = useState(false);
+
 
   const handleUpload = async (e) => {
     const file = e.target.files[0];
@@ -47,14 +49,31 @@ function App() {
       {!stats ? (
         <>
           <p>Upload your Goodreads CSV to see your reading stats!</p>
-          <label className="upload-button">
-            Upload CSV
+          <div className="upload-row">
+            <label className="upload-button">
+                Upload CSV
             <input
               type="file"
               onChange={handleUpload}
               style={{ display: "none" }}
             />
           </label>
+
+          <button className="help=btn" onClick={() => setShowTutorial(!showTutorial)} aria-label="How to export from Goodreads">
+            ?
+          </button>
+        </div>
+
+        <div className={`tutorial-panel ${showTutorial ? "open" : ""}`}>
+          <h3>How to export from Goodreads</h3>
+          <ol>
+            <li>Log in to Goodreads</li>
+            <li>Click <strong>My Books</strong></li>
+            <li>Scroll down and click <strong>Import and Export</strong> under tools</li>
+            <li>Click <strong>Export Library</strong></li>
+            <li>Download the CSV and upload it here</li>
+          </ol>
+        </div>
         </>
       ) : (
         <>
@@ -98,6 +117,14 @@ function App() {
             <p>Total pages: {stats[view].total_pages}</p>
             <p>Average rating: {stats[view].avg_rating}</p>
             <p>Top author: {stats[view].top_author || "N/A"}</p>
+            <hr />
+
+            <h3>Reading cadence</h3>
+            <p>Avg days per book: {stats[view].cadence.avg_days}</p>
+            <p>Median days per book: {stats[view].cadence.median_days}</p>
+            <p>Fastest gap: {stats[view].cadence.fastest_days} days</p>
+            <p>Longest gap: {stats[view].cadence.slowest_days} days</p>
+
           </div>
 
 <div className="chart-box">

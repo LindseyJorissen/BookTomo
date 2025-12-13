@@ -2,6 +2,35 @@ import pandas as pd
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import datetime
+from statistics import mean, median
+
+
+def compute_cadence(date_series):
+    dates = (
+        date_series
+        .dropna()
+        .dt.date
+        .drop_duplicates()
+        .sort_values()
+        .tolist()
+    )
+
+    if len(dates) < 2:
+        return None
+
+    gaps = [
+        (dates[i] - dates[i - 1]).days
+        for i in range(1, len(dates))
+    ]
+
+    return {
+        "avg_days": round(mean(gaps), 1),
+        "median_days": round(median(gaps), 1),
+        "fastest_days": min(gaps),
+        "slowest_days": max(gaps),
+        "first_finished": dates[0].isoformat(),
+        "last_finished": dates[-1].isoformat(),
+    }
 
 
 @csrf_exempt
@@ -23,6 +52,8 @@ def upload_goodreads(request):
 
             current_year = datetime.date.today().year
             df_current_year = df[df["Year Read"] == current_year]
+            cadence_overall = compute_cadence(df["Date Read"])
+            cadence_this_year = compute_cadence(df_current_year["Date Read"])
 
             def compute_stats(subset):
                 if subset.empty:
@@ -109,8 +140,14 @@ def upload_goodreads(request):
             ]
 
             stats = {
-                "overall": compute_stats(df),
-                "this_year": compute_stats(df_current_year),
+                "overall": {
+                    **compute_stats(df),
+                    "cadence": cadence_overall,
+                },
+                "this_year": {
+                    **compute_stats(df_current_year),
+                    "cadence": cadence_this_year,
+                },
                 "yearly_books": yearly_counts,
                 "monthly_books": monthly_counts,
                 "publication_years_overall": pub_counts_all,
@@ -122,6 +159,7 @@ def upload_goodreads(request):
             return JsonResponse(stats)
 
         except Exception as e:
-            return JsonResponse({"error": str(e)}, status=500)
+            # return JsonResponse({"error": str(e)}, status=500)
+            raise
 
     return JsonResponse({"error": "POST request required"}, status=400)

@@ -93,3 +93,40 @@ p {
   background-color: #a39988;
   color: #fff;
 }
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.help-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #eee;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.help-btn:hover {
+  background: #ddd;
+}
+
+.tutorial-panel {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+  margin-top: 12px;
+}
+
+.tutorial-panel.open {
+  max-height: 500px;
+  opacity: 1;
+}
+
+.tutorial-panel h3 {
+  margin-top: 0;
+}
+
