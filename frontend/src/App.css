@@ -1,11 +1,13 @@
 body {
-  background: linear-gradient(135deg, #e3dfd9, #a39988);
+  background: #ebe8dd;
   min-height: 100vh;
   margin: 0;
 }
 
 h1 {
-  margin-left: 1.5rem;
+  margin-left: 0.5rem;
+  font-size: xx-large;
+  color: #4c483c;
 }
 
 p {
@@ -174,4 +176,17 @@ p {
 
 .help-btn:hover {
   background: #ddd;
+}
+
+.neu-card {
+  background: #ebe8dd;
+  border-radius: 28px;
+  box-shadow:
+    -12px -12px 24px rgba(255, 255, 255, 0.8),
+    12px 12px 24px rgba(0, 0, 0, 0.12);
+}
+.neu-pressed {
+  box-shadow:
+    inset 6px 6px 12px rgba(0, 0, 0, 0.15),
+    inset -6px -6px 12px rgba(255, 255, 255, 0.8);
 }

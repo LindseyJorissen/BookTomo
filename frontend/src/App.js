@@ -115,7 +115,7 @@ function App() {
         </>
       ) : (
         <>
-          <button className="upload-button" onClick={handleReset}>
+          <button className="upload-button neu-card" onClick={handleReset}>
             Upload New CSV
           </button>
         </>
@@ -124,12 +124,12 @@ function App() {
       {error && <p style={{ color: "red" }}>Error: {error}</p>}
       {stats && (
         <div className="view-toggle">
-          <button className={`upload-button ${view === "overall" ? "active" : ""}`} onClick={() => setView("overall")}>
+          <button className={`upload-button neu-card ${view === "overall" ? "neu-pressed" : ""}`} onClick={() => setView("overall")}>
             Overall
           </button>
 
           <button
-            className={`upload-button ${view === "this_year" ? "active" : ""}`}
+            className={`upload-button neu-card ${view === "this_year" ? "neu-pressed" : ""}`}
             onClick={() => setView("this_year")}>
             This Year
           </button>
@@ -139,7 +139,7 @@ function App() {
       {stats && (
         <div className="stats-container">
           {/* Row 1–2: stats (left) */}
-          <div className="stats-box" style={{ gridRow: "span 2" }}>
+          <div className="stats-box neu-card" style={{ gridRow: "span 2" }}>
             <h2>{view === "overall" ? "All-time stats" : "This Year’s stats"}</h2>
             <p>Total books: {stats[view].total_books}</p>
             <p>Total pages: {stats[view].total_pages}</p>
@@ -156,12 +156,12 @@ function App() {
           </div>
 
           {/* Row 1: charts */}
-          <div className="chart-box">
+          <div className="chart-box neu-card">
             {view === "overall" && <YearlyBookChart yearlyData={stats.yearly_books} type="year" />}
             {view === "this_year" && <YearlyBookChart yearlyData={stats.monthly_books} type="month" />}
           </div>
 
-          <div className="chart-box">
+          <div className="chart-box neu-card">
             {view === "overall" && <PublicationVsReadChart data={stats.scatter_publication_vs_read_all} type="year" />}
             {view === "this_year" && (
               <PublicationVsReadChart data={stats.scatter_publication_vs_read_year} type="month" />
@@ -169,12 +169,12 @@ function App() {
           </div>
 
           {/* Row 2: text */}
-          <div className="info-box">
+          <div className="info-box neu-card">
             <h3>Reading over time</h3>
             <p>{getReadingOverTimeText()}</p>
           </div>
 
-          <div className="info-box">
+          <div className="info-box neu-card">
             <h3>When you read books</h3>
             <p>{getPublicationTimingText()}</p>
           </div>
@@ -182,11 +182,11 @@ function App() {
           {/* Row 3: book length chart */}
           <div className="right-grid">
             <div className="chart-stack">
-              <div className="chart-box" style={{ gridColumn: "1 / 2" }}>
+              <div className="chart-box neu-card" style={{ gridColumn: "1 / 2" }}>
                 {bookLengths?.histogram && <BookLengthChart data={bookLengths.histogram} />}
               </div>
 
-              <div className="info-box2" style={{ gridColumn: "1 / 2" }}>
+              <div className="info-box2 neu-card" style={{ gridColumn: "1 / 2" }}>
                 {bookLengths && (
                   <>
                     <p>
