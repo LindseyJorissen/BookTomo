@@ -12,6 +12,8 @@ function App() {
   const [showTutorial, setShowTutorial] = useState(false);
 
 // 2. helper functions
+const bookLengths = stats?.book_lengths?.[view];
+
 const getOldestPublicationYear = () => {
   return stats?.oldest_pub_year;
 };
@@ -108,13 +110,31 @@ const getPublicationTimingText = () => {
         </>
       ) : (
         <>
-          <button className="reset-button" onClick={handleReset}>
+          <button className="upload-button" onClick={handleReset}>
             Upload New CSV
           </button>
         </>
       )}
 
       {error && <p style={{ color: "red" }}>Error: {error}</p>}
+    {stats && (
+      <div className="view-toggle">
+  <button
+    className={`upload-button ${view === "overall" ? "active" : ""}`}
+    onClick={() => setView("overall")}
+  >
+    Overall
+  </button>
+
+  <button
+    className={`upload-button ${view === "this_year" ? "active" : ""}`}
+    onClick={() => setView("this_year")}
+  >
+    This Year
+  </button>
+</div>
+
+    )}
 
         {stats && (
   <div className="stats-container">
@@ -173,30 +193,41 @@ const getPublicationTimingText = () => {
     </div>
 
     {/* Row 3: book length chart */}
+    <div className="right-grid">
+    <div className="chart-stack">
     <div className="chart-box" style={{ gridColumn: "1 / 2" }}>
-      {stats.book_lengths?.histogram && (
-        <BookLengthChart data={stats.book_lengths.histogram} />
+      {bookLengths?.histogram && (
+        <BookLengthChart data={bookLengths.histogram} />
       )}
     </div>
 
-    {/* Row 4: book length text */}
-    {stats.book_lengths && (
-  <div className="info-box" style={{ gridColumn: "1 / 2" }}>
+  <div className="info-box2" style={{ gridColumn: "1 / 2" }}>
+    {bookLengths && (
+    <>
     <p>
       On average, your books are about{" "}
       <strong>{stats.book_lengths.average_pages}</strong> pages long.
     </p>
 
-    {stats.book_lengths.longest_book && (
-      <p>
-        Your longest finished book was{" "}
-        <strong>{stats.book_lengths.longest_book.title}</strong> by{" "}
-        {stats.book_lengths.longest_book.author}, at{" "}
-        {stats.book_lengths.longest_book.pages} pages.
-      </p>
+{bookLengths?.longest_book && (() => {
+  const { title, author, pages } = bookLengths.longest_book;
+  return (
+    <p>
+      Your longest finished book was{" "}
+      <strong>{title}</strong> by {author}, at {pages} pages.
+    </p>
+  );
+})()}
+
+
+    </>
     )}
   </div>
-)}
+
+  </div>
+  </div>
+
+
 
 
   </div>

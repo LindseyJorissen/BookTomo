@@ -57,30 +57,49 @@ def upload_goodreads(request):
             cadence_overall = compute_cadence(df["Date Read"])
             cadence_this_year = compute_cadence(df_current_year["Date Read"])
 
-            if "Number of Pages" in df.columns:
-                pages = df["Number of Pages"].dropna()
-
-                avg_pages = int(pages.mean()) if not pages.empty else 0
-                max_pages = int(pages.max()) if not pages.empty else 0
-                min_pages = int(pages.min()) if not pages.empty else 0
-
-                longest_book = None
-                if max_pages > 0:
-                    longest_row = df.loc[df["Number of Pages"].idxmax()]
-                    longest_book = {
-                        "title": longest_row.get("Title"),
-                        "author": longest_row.get("Author"),
-                        "pages": int(longest_row.get("Number of Pages")),
-                    }
-            else:
-                avg_pages = 0
-                longest_book = None
-
             oldest_pub_year = None
             if "Original Publication Year" in df.columns:
                 years = pd.to_numeric(df["Original Publication Year"], errors="coerce").dropna()
                 if not years.empty:
                     oldest_pub_year = int(years.min())
+
+            def compute_book_lengths(df):
+                pages = df["Number of Pages"].dropna()
+
+                if pages.empty:
+                    return None
+
+                avg_pages = int(pages.mean())
+                max_pages = int(pages.max())
+
+                longest_row = df.loc[pages.idxmax()]
+
+                # histogram bins
+                bins = [
+                    (0, 200, "0–200"),
+                    (200, 300, "200–300"),
+                    (300, 400, "300–400"),
+                    (400, 500, "400–500"),
+                    (500, float("inf"), "500+"),
+                ]
+
+                histogram = []
+                for low, high, label in bins:
+                    count = pages[(pages >= low) & (pages < high)].count()
+                    histogram.append({
+                        "range": label,
+                        "count": int(count),
+                    })
+
+                return {
+                    "average_pages": avg_pages,
+                    "longest_book": {
+                        "title": longest_row.get("Title"),
+                        "author": longest_row.get("Author"),
+                        "pages": int(longest_row.get("Number of Pages")),
+                    },
+                    "histogram": histogram,
+                }
 
             def compute_stats(subset):
                 if subset.empty:
@@ -165,7 +184,6 @@ def upload_goodreads(request):
                 {"pub_year": int(row["Original Publication Year"]), "read_value": int(row["Month Read"])}
                 for _, row in scatter_year.iterrows()
             ]
-
             stats = {
                 "overall": {
                     **compute_stats(df),
@@ -182,9 +200,9 @@ def upload_goodreads(request):
                 "scatter_publication_vs_read_all": scatter_points_all,
                 "scatter_publication_vs_read_year": scatter_points_this_year,
 
-                "book_lenghts": {
-                    "average_pages": avg_pages,
-                    "longest_book": longest_book,
+                "book_lengths": {
+                    "overall": compute_book_lengths(df),
+                    "this_year": compute_book_lengths(df_current_year),
                 },
                 "oldest_pub_year": oldest_pub_year,
             }

@@ -33,44 +33,6 @@ p {
   height: 350px;
 }
 
-.upload-button {
-  background: #ebe8dd;
-  color: #000000;
-  cursor: pointer;
-  border-radius: 30px;
-  width: 140px;
-  height: 45px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 1rem;
-  user-select: none;
-  transition: background-color 0.3s, color 0.3s;
-}
-
-.upload-button:hover {
-  background-color: #a39988;
-  color: #fff;
-}
-
-
-.small-button {
-  background: #e0dbd3;
-  color: #000000;
-  border: none;
-  cursor: pointer;
-  border-radius: 30px;
-  width: 100px;
-  height: 45px;
-  transition: 0.3s;
-}
-
-.small-button:hover {
-  background-color: #a39988;
-  color: #fff;
-}
-
 .stats-container {
   display: flex;
   gap: 2rem;
@@ -78,41 +40,12 @@ p {
   flex-wrap: wrap;
 }
 
-
-.reset-button {
-  background: #ebe8dd;
-  color: #000;
-  border: none;
-  cursor: pointer;
-  border-radius: 30px;
-  width: 160px;
-  height: 45px;
-  transition: 0.3s;
-}
-
-.reset-button:hover {
-  background-color: #a39988;
-  color: #fff;
-}
 .upload-row {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.help-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: none;
-  background: #eee;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.help-btn:hover {
-  background: #ddd;
-}
 
 .tutorial-panel {
   max-height: 0;
@@ -137,6 +70,12 @@ p {
   gap: 2rem;
   align-items: stretch;
 }
+.chart-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+}
 
 .right-grid {
   display: grid;
@@ -159,7 +98,14 @@ p {
   margin-top: -0.5rem;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
-
+.info-box2 {
+  background-color: #f3efe6;
+  border-radius: 24px;
+  padding: 0.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  margin-top: 1.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
 .info-box h3 {
   margin-top: 0;
   magin-bottom: 0.5rem;
@@ -174,3 +120,58 @@ p {
   hyphens: auto;
 }
 
+.chart-box {
+  min-height: 320px;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+  margin-top: 2rem
+}
+
+.upload-button {
+  padding: 0 1.5rem;
+  background: #ebe8dd;
+  border: none;
+  outline: none;
+  color: #000000;
+  cursor: pointer;
+  border-radius: 30px;
+  width: 140px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  user-select: none;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.upload-button:hover {
+  background-color: #a39988;
+  color: #fff;
+}
+
+.upload-button.active {
+  background-color: #d8d2c4;
+  font-weight: bold;
+  box-shadow: inset 0 0 0 2px #a39988;
+
+}
+
+
+.help-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #eee;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.help-btn:hover {
+  background: #ddd;
+}
