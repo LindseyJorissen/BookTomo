@@ -21,8 +21,8 @@ const getOldestPublicationYear = () => {
 const getReadingOverTimeText = () => {
 const s = stats[view];
 if (!s) return "";
-return view === "overall"
- ? `Across your entire reading history, you've finished ${s.total_books} books.
+return view === "overall" 
+  ? `Across your entire reading history, you've finished ${s.total_books} books.
  The chart above shows how your reading ebbs and flows over time.`
  : `So far this year, you've finished ${s.total_books} books.
  Your reading activity varies across the months.`;
