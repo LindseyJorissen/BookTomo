@@ -83,13 +83,13 @@ function App() {
         <>
           <p>Upload your Goodreads CSV to see your reading stats!</p>
           <div className="upload-row">
-            <label className="upload-button">
+            <label className="upload-button neu-card">
               Upload CSV
               <input type="file" onChange={handleUpload} style={{ display: "none" }} />
             </label>
 
             <button
-              className="help-btn"
+              className="help-btn neu-card"
               onClick={() => setShowTutorial(!showTutorial)}
               aria-label="How to export from Goodreads">
               ?

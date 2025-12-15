@@ -153,11 +153,6 @@ p {
     color 0.3s;
 }
 
-.upload-button:hover {
-  background-color: #a39988;
-  color: #fff;
-}
-
 .upload-button.active {
   background-color: #d8d2c4;
   font-weight: bold;
@@ -189,4 +184,9 @@ p {
   box-shadow:
     inset 6px 6px 12px rgba(0, 0, 0, 0.15),
     inset -6px -6px 12px rgba(255, 255, 255, 0.8);
+}
+.neu-card:hover {
+  box-shadow:
+    -4px -4px 8px rgba(255,255,255,0.8),
+     4px  4px 8px rgba(0,0,0,0.15);
 }
