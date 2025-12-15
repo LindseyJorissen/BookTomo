@@ -2,17 +2,23 @@ import { useState } from "react";
 import "./App.css";
 import YearlyBookChart from "./YearlyBookChart";
 import PublicationVsReadChart from "./PublicationVsReadChart";
+import BookLengthChart from "./BookLengthChart";
 
 function App() {
+// 1. state
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [view, setView] = useState("overall");
   const [showTutorial, setShowTutorial] = useState(false);
 
+// 2. helper functions
+const getOldestPublicationYear = () => {
+  return stats?.oldest_pub_year;
+};
+
 const getReadingOverTimeText = () => {
 const s = stats[view];
 if (!s) return "";
-
 return view === "overall"
  ? `Across your entire reading history, you've finished ${s.total_books} books.
  The chart above shows how your reading ebbs and flows over time.`
@@ -21,15 +27,19 @@ return view === "overall"
 };
 
 const getPublicationTimingText = () => {
-const s = stats[view];
-if (!s) return "";
-    return view === "overall"
-      ? `Your reading spans a wide range of publication years.
-         ${s.top_author ? `One author you return to often is ${s.top_author}.` : ""}`
-      : `This year’s reading includes books from different publication periods.
-         ${s.top_author ? `${s.top_author} appears most frequently.` : ""}`;
-  };
+  if (!stats) return "";
 
+  const oldestYear = getOldestPublicationYear();
+
+  return view === "overall"
+    ? `Your reading spans a wide range of publication years,
+       reaching back well beyond recent releases.
+       ${oldestYear ? `The oldest book you’ve read was published in ${oldestYear}.` : ""}`
+    : `This year’s reading includes books from different publication periods.
+       ${oldestYear ? `The oldest one dates back to ${oldestYear}.` : ""}`;
+};
+
+// 3. handlers
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -62,6 +72,7 @@ if (!s) return "";
     setView("overall");
   };
 
+// 4. render
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial" }}>
       <h1>BookTomo</h1>
@@ -79,7 +90,7 @@ if (!s) return "";
             />
           </label>
 
-          <button className="help=btn" onClick={() => setShowTutorial(!showTutorial)} aria-label="How to export from Goodreads">
+          <button className="help-btn" onClick={() => setShowTutorial(!showTutorial)} aria-label="How to export from Goodreads">
             ?
           </button>
         </div>
@@ -105,95 +116,95 @@ if (!s) return "";
 
       {error && <p style={{ color: "red" }}>Error: {error}</p>}
 
-      {stats && (
-        <div className="stats-container">
+        {stats && (
+  <div className="stats-container">
 
-        {/* left column */}
-          <div className="stats-box">
-            <div style={{ marginBottom: "1rem" }}>
-              <button
-                className="small-button"
-                onClick={() => setView("overall")}
-                style={{
-                  fontWeight: view === "overall" ? "bold" : "normal",
-                  marginRight: "1rem",
-                }}
-              >
-                Overall
-              </button>
-              <button
-                className="small-button"
-                onClick={() => setView("this_year")}
-                style={{
-                  fontWeight: view === "this_year" ? "bold" : "normal",
-                }}
-              >
-                This Year
-              </button>
-            </div>
+    {/* Row 1–2: stats (left) */}
+    <div className="stats-box" style={{ gridRow: "span 2" }}>
+      <h2>{view === "overall" ? "All-time stats" : "This Year’s stats"}</h2>
+      <p>Total books: {stats[view].total_books}</p>
+      <p>Total pages: {stats[view].total_pages}</p>
+      <p>Average rating: {stats[view].avg_rating}</p>
+      <p>Top author: {stats[view].top_author || "N/A"}</p>
 
-            <h2>
-              {view === "overall" ? "All-time stats" : "This Year’s stats"}
-            </h2>
-            <p>Total books: {stats[view].total_books}</p>
-            <p>Total pages: {stats[view].total_pages}</p>
-            <p>Average rating: {stats[view].avg_rating}</p>
-            <p>Top author: {stats[view].top_author || "N/A"}</p>
-            <hr />
+      <hr />
 
-            <h3>Reading cadence</h3>
-            <p>Avg days per book: {stats[view].cadence.avg_days}</p>
-            <p>Median days per book: {stats[view].cadence.median_days}</p>
-            <p>Fastest gap: {stats[view].cadence.fastest_days} days</p>
-            <p>Longest gap: {stats[view].cadence.slowest_days} days</p>
-
-          </div>
-
-<div className="right-grid">
-{/* charts right column*/}
-
-{/* yearly books chart */}
-<div className="chart-box">
-  {view === "overall" && stats.yearly_books && (
-    <YearlyBookChart yearlyData={stats.yearly_books} type="year" />
-  )}
-  {view === "this_year" && stats.monthly_books && (
-    <YearlyBookChart yearlyData={stats.monthly_books} type="month" />
-  )}
-</div>
-
-{/* publication vs read chart */}
-<div className="chart-box">
-  {view === "overall" &&
-    stats.scatter_publication_vs_read_all?.length > 0 && (
-      <PublicationVsReadChart
-        data={stats.scatter_publication_vs_read_all}
-        type="year"
-      />
-    )}
-
-  {view === "this_year" &&
-    stats.scatter_publication_vs_read_year?.length > 0 && (
-      <PublicationVsReadChart
-        data={stats.scatter_publication_vs_read_year}
-        type="month"
-      />
-    )}
-</div>
-
-{/* text cards */}
-<div className="info-box">
-    <h3>Reading over time</h3>
-    <p>{getReadingOverTimeText()}</p>
-</div>
-<div className="info-box">
-    <h3>When you read books</h3>
-    <p>{getPublicationTimingText()}</p>
+      <h3>Reading cadence</h3>
+      <p>Avg days per book: {stats[view].cadence.avg_days}</p>
+      <p>Median days per book: {stats[view].cadence.median_days}</p>
+      <p>Fastest gap: {stats[view].cadence.fastest_days} days</p>
+      <p>Longest gap: {stats[view].cadence.slowest_days} days</p>
     </div>
 
+    {/* Row 1: charts */}
+    <div className="chart-box">
+      {view === "overall" && (
+        <YearlyBookChart yearlyData={stats.yearly_books} type="year" />
+      )}
+      {view === "this_year" && (
+        <YearlyBookChart yearlyData={stats.monthly_books} type="month" />
+      )}
     </div>
-</div>
+
+    <div className="chart-box">
+      {view === "overall" && (
+        <PublicationVsReadChart
+          data={stats.scatter_publication_vs_read_all}
+          type="year"
+        />
+      )}
+      {view === "this_year" && (
+        <PublicationVsReadChart
+          data={stats.scatter_publication_vs_read_year}
+          type="month"
+        />
+      )}
+    </div>
+
+    {/* Row 2: text */}
+    <div className="info-box">
+      <h3>Reading over time</h3>
+      <p>{getReadingOverTimeText()}</p>
+    </div>
+
+    <div className="info-box">
+      <h3>When you read books</h3>
+      <p>{getPublicationTimingText()}</p>
+    </div>
+
+    {/* Row 3: book length chart */}
+    <div className="chart-box" style={{ gridColumn: "1 / 2" }}>
+      {stats.book_lengths?.histogram && (
+        <BookLengthChart data={stats.book_lengths.histogram} />
+      )}
+    </div>
+
+    {/* Row 4: book length text */}
+    {stats.book_lengths && (
+  <div className="info-box" style={{ gridColumn: "1 / 2" }}>
+    <p>
+      On average, your books are about{" "}
+      <strong>{stats.book_lengths.average_pages}</strong> pages long.
+    </p>
+
+    {stats.book_lengths.longest_book && (
+      <p>
+        Your longest finished book was{" "}
+        <strong>{stats.book_lengths.longest_book.title}</strong> by{" "}
+        {stats.book_lengths.longest_book.author}, at{" "}
+        {stats.book_lengths.longest_book.pages} pages.
+      </p>
+    )}
+  </div>
 )}
+
+
+  </div>
+)}
+
+
+
+
 
 
     </div>

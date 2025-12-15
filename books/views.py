@@ -42,6 +42,8 @@ def upload_goodreads(request):
                 return JsonResponse({"error": "No file uploaded"}, status=400)
 
             df = pd.read_csv(file)
+            if "Exclusive Shelf" in df.columns:
+                df = df[df["Exclusive Shelf"] == "read"]
 
             if "Date Read" not in df.columns:
                 return JsonResponse({"error": "CSV missing 'Date Read' column"}, status=400)
@@ -54,6 +56,31 @@ def upload_goodreads(request):
             df_current_year = df[df["Year Read"] == current_year]
             cadence_overall = compute_cadence(df["Date Read"])
             cadence_this_year = compute_cadence(df_current_year["Date Read"])
+
+            if "Number of Pages" in df.columns:
+                pages = df["Number of Pages"].dropna()
+
+                avg_pages = int(pages.mean()) if not pages.empty else 0
+                max_pages = int(pages.max()) if not pages.empty else 0
+                min_pages = int(pages.min()) if not pages.empty else 0
+
+                longest_book = None
+                if max_pages > 0:
+                    longest_row = df.loc[df["Number of Pages"].idxmax()]
+                    longest_book = {
+                        "title": longest_row.get("Title"),
+                        "author": longest_row.get("Author"),
+                        "pages": int(longest_row.get("Number of Pages")),
+                    }
+            else:
+                avg_pages = 0
+                longest_book = None
+
+            oldest_pub_year = None
+            if "Original Publication Year" in df.columns:
+                years = pd.to_numeric(df["Original Publication Year"], errors="coerce").dropna()
+                if not years.empty:
+                    oldest_pub_year = int(years.min())
 
             def compute_stats(subset):
                 if subset.empty:
@@ -154,6 +181,12 @@ def upload_goodreads(request):
                 "publication_years_this_year": pub_counts_this_year,
                 "scatter_publication_vs_read_all": scatter_points_all,
                 "scatter_publication_vs_read_year": scatter_points_this_year,
+
+                "book_lenghts": {
+                    "average_pages": avg_pages,
+                    "longest_book": longest_book,
+                },
+                "oldest_pub_year": oldest_pub_year,
             }
 
             return JsonResponse(stats)
