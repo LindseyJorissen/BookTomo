@@ -33,6 +33,9 @@ Instead of relying on simple filters, the Graph Engine models **books, authors, 
 
 This makes it possible to generate **explainable recommendations** and visual reading networks.
 
+Although Booktomo focuses on yearly reading summaries, recommendations are generated on a per-book basis. This avoids noise introduced by disliked or low-rated books and allows recommendations to be based on explicit user preference, resulting in more focused and explainable outcomes.
+
 ### What the Graph Engine Adds
 
 - Models books, authors, and genres
+
