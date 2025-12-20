@@ -1,27 +1,38 @@
-**BookTomo Graph Engine**
-An experimental graph-based recommendation and visualization system built with NetworkX and Pydantic.
-It models books, authors and genres as a network to generate explainable reading recommendations.
+# BookTomo
 
+**BookTomo** is a year-in-review app for readers — think *Spotify Wrapped*, but for books.
 
-**BookTomo** is a year-in-review app for readers — think *Spotify Wrapped*, but for books.  
-
-It takes your reading data (from a Goodreads CSV export) and turns it into fun, visual stats you can share.  
-
-
+It transforms your reading data into clear insights, visual summaries, and (experimentally) personalized recommendations. The goal of BookTomo is not only to show *what* you read, but also to help you understand patterns in your reading habits and discover new books you might enjoy.
 
 ---
 
+## What BookTomo Does
 
+BookTomo takes your **Goodreads CSV export** and turns it into:
 
-## Features
-
-- Upload your Goodreads CSV
-
-- Get your yearly reading stats (books read, pages, genres, ratings, top authors)  
-
-- Beautiful visualizations with charts \& animations  
-
-
+- Yearly reading statistics (books read, pages, genres, ratings)
+- Insights into your reading behavior
+- Clean, visual charts and animations you can explore and share
 
 ---
 
+## Core Features
+
+- Upload your Goodreads CSV file  
+- View yearly and overall reading statistics  
+- Genre, rating, and author breakdowns  
+- Interactive and animated visualizations  
+
+---
+
+## BookTomo Graph Engine (Experimental)
+
+The **BookTomo Graph Engine** is an experimental recommendation and visualization system that extends BookTomo beyond statistics.
+
+Instead of relying on simple filters, the Graph Engine models **books, authors, and genres as a network** and applies graph analysis techniques to explore how books relate to each other.
+
+This makes it possible to generate **explainable recommendations** and visual reading networks.
+
+### What the Graph Engine Adds
+
+- Models books, authors, and genres
