@@ -1,0 +1,2 @@
+BOOK_NODES = []
+GRAPH = None

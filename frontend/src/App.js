@@ -3,25 +3,29 @@ import "./App.css";
 import YearlyBookChart from "./YearlyBookChart";
 import PublicationVsReadChart from "./PublicationVsReadChart";
 import BookLengthChart from "./BookLengthChart";
+import BookGraph from "./components/BookGraph";
 
 function App() {
   // 1. state
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
-  const [view, setView] = useState("overall");
   const [showTutorial, setShowTutorial] = useState(false);
 
+  const [activeView, setActiveView] = useState("stats"); // Stats | Suggestions
+  const [timeView, setTimeView] = useState("overall");  // Overall | This Year
+
+
   // 2. helper functions
-  const bookLengths = stats?.book_lengths?.[view];
+  const bookLengths = stats?.book_lengths?.[timeView];
 
   const getOldestPublicationYear = () => {
     return stats?.oldest_pub_year;
   };
 
   const getReadingOverTimeText = () => {
-    const s = stats[view];
+    const s = stats[timeView];
     if (!s) return "";
-    return view === "overall"
+    return timeView === "overall"
       ? `Across your entire reading history, you've finished ${s.total_books} books.
  The chart above shows how your reading ebbs and flows over time.`
       : `So far this year, you've finished ${s.total_books} books.
@@ -33,7 +37,7 @@ function App() {
 
     const oldestYear = getOldestPublicationYear();
 
-    return view === "overall"
+    return timeView === "overall"
       ? `Your reading spans a wide range of publication years,
        reaching back well beyond recent releases.
        ${oldestYear ? `The oldest book you’ve read was published in ${oldestYear}.` : ""}`
@@ -71,7 +75,6 @@ function App() {
   const handleReset = () => {
     setStats(null);
     setError(null);
-    setView("overall");
   };
 
   // 4. render
@@ -121,49 +124,71 @@ function App() {
         </>
       )}
 
+  {stats && (
+<div className="top-tabs">
+  <button
+    className={`upload-button neu-card ${activeView === "stats" ? "neu-pressed" : ""}`}
+    onClick={() => setActiveView("stats")}
+  >
+    Stats
+  </button>
+
+  <button
+    className={`upload-button neu-card ${activeView === "suggestions" ? "neu-pressed" : ""}`}
+    onClick={() => setActiveView("suggestions")}
+  >
+    Suggestions
+  </button>
+</div>
+)}
+
+{activeView === "stats" && (
+  <>
       {error && <p style={{ color: "red" }}>Error: {error}</p>}
-      {stats && (
-        <div className="view-toggle">
-          <button className={`upload-button neu-card ${view === "overall" ? "neu-pressed" : ""}`} onClick={() => setView("overall")}>
-            Overall
-          </button>
-
-          <button
-            className={`upload-button neu-card ${view === "this_year" ? "neu-pressed" : ""}`}
-            onClick={() => setView("this_year")}>
-            This Year
-          </button>
-        </div>
-      )}
 
       {stats && (
-        <div className="stats-container">
+      <div className="stats-container">
+        <div className="stats-box neu-card">
           {/* Row 1–2: stats (left) */}
-          <div className="stats-box neu-card" style={{ gridRow: "span 2" }}>
-            <h2>{view === "overall" ? "All-time stats" : "This Year’s stats"}</h2>
-            <p>Total books: {stats[view].total_books}</p>
-            <p>Total pages: {stats[view].total_pages}</p>
-            <p>Average rating: {stats[view].avg_rating}</p>
-            <p>Top author: {stats[view].top_author || "N/A"}</p>
+            <div className="stats-box-header" style={{ gridRow: "span 2" }}>
+                <div className="view-toggle">
+                  <button
+                  className={`upload-button small neu-card ${timeView === "overall" ? "neu-pressed" : ""}`}
+                  onClick={() => setTimeView("overall")}>
+                    Overall
+                  </button>
+
+                  <button
+                    className={`upload-button small neu-card ${timeView === "this_year" ? "neu-pressed" : ""}`}
+                    onClick={() => setTimeView("this_year")}>
+                    This Year
+                  </button>
+                </div>
+            </div>
+            <h2>{timeView === "overall" ? "All-time stats" : "This Year’s stats"}</h2>
+            <p>Total books: {stats[timeView].total_books}</p>
+            <p>Total pages: {stats[timeView].total_pages}</p>
+            <p>Average rating: {stats[timeView].avg_rating}</p>
+            <p>Top author: {stats[timeView].top_author || "N/A"}</p>
 
             <hr />
 
             <h3>Reading cadence</h3>
-            <p>Avg days per book: {stats[view].cadence.avg_days}</p>
-            <p>Median days per book: {stats[view].cadence.median_days}</p>
-            <p>Fastest gap: {stats[view].cadence.fastest_days} days</p>
-            <p>Longest gap: {stats[view].cadence.slowest_days} days</p>
+            <p>Avg days per book: {stats[timeView].cadence.avg_days}</p>
+            <p>Median days per book: {stats[timeView].cadence.median_days}</p>
+            <p>Fastest gap: {stats[timeView].cadence.fastest_days} days</p>
+            <p>Longest gap: {stats[timeView].cadence.slowest_days} days</p>
           </div>
 
           {/* Row 1: charts */}
           <div className="chart-box neu-card">
-            {view === "overall" && <YearlyBookChart yearlyData={stats.yearly_books} type="year" />}
-            {view === "this_year" && <YearlyBookChart yearlyData={stats.monthly_books} type="month" />}
+            {timeView === "overall" && <YearlyBookChart yearlyData={stats.yearly_books} type="year" />}
+            {timeView === "this_year" && <YearlyBookChart yearlyData={stats.monthly_books} type="month" />}
           </div>
 
           <div className="chart-box neu-card">
-            {view === "overall" && <PublicationVsReadChart data={stats.scatter_publication_vs_read_all} type="year" />}
-            {view === "this_year" && (
+            {timeView === "overall" && <PublicationVsReadChart data={stats.scatter_publication_vs_read_all} type="year" />}
+            {timeView === "this_year" && (
               <PublicationVsReadChart data={stats.scatter_publication_vs_read_year} type="month" />
             )}
           </div>
@@ -209,6 +234,19 @@ function App() {
           </div>
         </div>
       )}
+  </>
+)}
+
+{activeView === "suggestions" && (
+  <iframe
+    src="http://localhost:8000/api/graph/book%3A%3AMidnight%20Sun%20(The%20Twilight%20Saga%2C%20%235)%3A%3AStephenie%20Meyer/"
+    width="100%"
+    height="600"
+    style={{ border: "none", borderRadius: "16px" }}
+    title="Book Graph"
+  />
+)}
+
     </div>
   );
 }

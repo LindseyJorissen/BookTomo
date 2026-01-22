@@ -1,3 +1,9 @@
+*,
+*::before,
+*::after {
+box-sizing: border-box;
+}
+
 body {
   background: #ebe8dd;
   min-height: 100vh;
@@ -12,6 +18,7 @@ h1 {
 
 p {
   margin-left: 1.5rem;
+  margin: 1.1rem 0 1.5rem 0;
 }
 
 .stats-box {
@@ -19,9 +26,20 @@ p {
   padding: 1.5rem;
   border-radius: 30px;
   background-color: #ebe8dd;
-  width: fit-content;
   box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1);
+  grid-column: 1;
+  width: 290px;
+  min-width: 290px;
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
 }
+
+.stats-box p {
+  margin: 1.1rem 0 0 0;
+
+}
+
 
 .chart-box {
   margin-top: 1rem;
@@ -32,14 +50,16 @@ p {
   flex: 1;
   min-width: 400px;
   max-width: 600px;
-  height: 350px;
+  height: 420px;
+  grid-row:1;
 }
 
 .stats-container {
-  display: flex;
+  display: grid;
+  grid-template-columns: 290px 1fr 1fr;
+  grid-template-rows: auto auto;
   gap: 2rem;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: stretch;
 }
 
 .upload-row {
@@ -67,12 +87,6 @@ p {
   margin-top: 0;
 }
 
-.stats-container {
-  display: grid;
-  grid-template-columns: 290px 1fr 1fr;
-  gap: 2rem;
-  align-items: stretch;
-}
 .chart-stack {
   display: flex;
   flex-direction: column;
@@ -86,11 +100,6 @@ p {
   row-gap: 1.25rem;
 }
 
-.stats-box {
-  grid-row: 1 / -1;
-  display: flex;
-  flex-direction: column;
-}
 
 .info-box {
   background-color: #f3efe6;
@@ -99,14 +108,19 @@ p {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
   margin-top: -0.5rem;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+  grid-row: 2;
 }
+
 .info-box2 {
   background-color: #f3efe6;
   border-radius: 24px;
-  padding: 0.5rem;
+  padding: 1rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
   margin-top: 1.5rem;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.info-box2 p{
+  margin: 1.1rem 0 1.1rem 0;
 }
 .info-box h3 {
   margin-top: 0;
@@ -122,10 +136,6 @@ p {
   hyphens: auto;
 }
 
-.chart-box {
-  min-height: 320px;
-}
-
 .view-toggle {
   display: flex;
   gap: 0.7rem;
@@ -134,7 +144,7 @@ p {
 }
 
 .upload-button {
-  padding: 0 1.5rem;
+  padding: 1.5rem 0 1.5rem 0;
   background: #ebe8dd;
   border: none;
   outline: none;
@@ -189,4 +199,30 @@ p {
   box-shadow:
     -4px -4px 8px rgba(255,255,255,0.8),
      4px  4px 8px rgba(0,0,0,0.15);
+}
+.stats-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.upload-button.small {
+  width: 110px;
+  padding: 0 1rem;
+  height: 36px;
+  font-size: 0.9rem;
+  margin-left: 1%;
+  margin-top: -30px;
+  margin-bottom: -60px;
+}
+
+.top-tabs {
+display: flex;
+gap: 1rem;
+margin: 2rem 0 0 0;
+}
+
+iframe {
+margin-top: 1rem;
 }

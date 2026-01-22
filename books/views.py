@@ -1,8 +1,21 @@
 import pandas as pd
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 import datetime
 from statistics import mean, median
+from books.graph_engine.extract import extract_books_from_df
+from books.graph_engine.visualize_interactive import visualize_book_ego_graph_interactive
+import os
+import tempfile
+from books.graph_engine import state
+
+
+def book_graph_view(request, book_id):
+    if state.GRAPH is None:
+        return HttpResponse("Graph not built yet", status=400)
+
+    html = visualize_book_ego_graph_interactive(state.GRAPH, book_id)
+    return HttpResponse(html)
 
 
 def compute_cadence(date_series):
@@ -42,6 +55,32 @@ def upload_goodreads(request):
                 return JsonResponse({"error": "No file uploaded"}, status=400)
 
             df = pd.read_csv(file)
+
+            from books.graph_engine.extract import extract_books_from_df
+            from books.graph_engine.state import BOOK_NODES
+
+            books = extract_books_from_df(df)
+
+            state.BOOK_NODES.clear()
+            state.BOOK_NODES.extend(books)
+
+            print(f"Extracted {len(books)} book nodes")
+            print(books[0])
+
+            from books.graph_engine.builder import build_author_graph
+
+            state.GRAPH = build_author_graph(books)
+
+            from books.graph_engine.recommend import recommend_books_by_author
+
+            sample_book = books[0]
+
+            recs = recommend_books_by_author(state.GRAPH, sample_book.id)
+
+            print("Recommendations for:", sample_book.title)
+            for r in recs:
+                print("-", r["title"], "(weight:", r["weight"], ")")
+
             if "Exclusive Shelf" in df.columns:
                 df = df[df["Exclusive Shelf"] == "read"]
 
