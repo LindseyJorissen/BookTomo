@@ -226,3 +226,49 @@ margin: 2rem 0 0 0;
 iframe {
 margin-top: 1rem;
 }
+
+.suggestions-layout {
+height: 100%;
+min-height: 650px;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.book-list {
+  padding: 1rem;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.book-list-scroll {
+  overflow-y: auto;
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.book-item {
+  text-align: left;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: none;
+  background: #f3efe6;
+  cursor: pointer;
+}
+
+.book-item:hover {
+  background: #e5dfd2;
+}
+
+.book-author {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.graph-container {
+  padding: 1rem;
+}

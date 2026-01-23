@@ -64,12 +64,13 @@ def upload_goodreads(request):
             state.BOOK_NODES.clear()
             state.BOOK_NODES.extend(books)
 
-            print(f"Extracted {len(books)} book nodes")
-            print(books[0])
-
             from books.graph_engine.builder import build_author_graph
-
             state.GRAPH = build_author_graph(books)
+
+            read_df = df
+            if "Exclusive Shelf" in df.columns:
+                read_df = df[df["Exclusive Shelf"] == "read"]
+            read_books = extract_books_from_df(read_df)
 
             from books.graph_engine.recommend import recommend_books_by_author
 
@@ -80,9 +81,6 @@ def upload_goodreads(request):
             print("Recommendations for:", sample_book.title)
             for r in recs:
                 print("-", r["title"], "(weight:", r["weight"], ")")
-
-            if "Exclusive Shelf" in df.columns:
-                df = df[df["Exclusive Shelf"] == "read"]
 
             if "Date Read" not in df.columns:
                 return JsonResponse({"error": "CSV missing 'Date Read' column"}, status=400)
@@ -245,6 +243,15 @@ def upload_goodreads(request):
                 },
                 "oldest_pub_year": oldest_pub_year,
             }
+
+            stats["books"] = [
+                {
+                    "id": book.id,
+                    "title": book.title,
+                    "author": book.author,
+                }
+                for book in read_books
+            ]
 
             return JsonResponse(stats)
 

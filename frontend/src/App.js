@@ -13,6 +13,7 @@ function App() {
 
   const [activeView, setActiveView] = useState("stats"); // Stats | Suggestions
   const [timeView, setTimeView] = useState("overall");  // Overall | This Year
+  const [selectedBook, setSelectedBook] = useState(null);
 
 
   // 2. helper functions
@@ -64,18 +65,26 @@ function App() {
       }
 
       const data = await res.json();
+
       setStats(data);
+      setSelectedBook(data.books[0]);
+      setActiveView("stats");
       setError(null);
+
     } catch (err) {
       setError(err.message);
       setStats(null);
     }
   };
 
-  const handleReset = () => {
-    setStats(null);
-    setError(null);
-  };
+const handleReset = () => {
+  setStats(null);
+  setSelectedBook(null);
+  setError(null);
+  setTimeView("overall");
+  setActiveView("stats");
+};
+
 
   // 4. render
   return (
@@ -237,15 +246,46 @@ function App() {
   </>
 )}
 
-{activeView === "suggestions" && (
-  <iframe
-    src="http://localhost:8000/api/graph/book%3A%3AMidnight%20Sun%20(The%20Twilight%20Saga%2C%20%235)%3A%3AStephenie%20Meyer/"
-    width="100%"
-    height="600"
-    style={{ border: "none", borderRadius: "16px" }}
-    title="Book Graph"
-  />
+{activeView === "suggestions" && stats && (
+  <div className="suggestions-layout">
+
+    {/* LEFT: book selector */}
+    <div className="book-list neu-card">
+      <h3>Your books</h3>
+
+      <div className="book-list-scroll">
+        {stats.books.map((book) => (
+          <button
+            key={book.id}
+            className="book-item"
+            onClick={() => setSelectedBook(book)}
+          >
+            <strong>{book.title}</strong>
+            <div className="book-author">{book.author}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+
+    {/* RIGHT: graph */}
+    <div className="graph-container neu-card">
+      {selectedBook ? (
+        <iframe
+          src={`http://localhost:8000/api/graph/${encodeURIComponent(`book::${selectedBook.id}`)}`}
+          width="100%"
+          height="100%"
+          minHeight= "650px"
+          style={{ border: "none", borderRadius: "16px" }}
+          title="Book Graph"
+        />
+      ) : (
+        <p>Select a book to see recommendations</p>
+      )}
+    </div>
+
+  </div>
 )}
+
 
     </div>
   );
