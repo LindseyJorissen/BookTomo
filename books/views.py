@@ -8,13 +8,51 @@ from books.graph_engine.visualize_interactive import visualize_book_ego_graph_in
 import os
 import tempfile
 from books.graph_engine import state
+from books.openlibrary.client import fetch_unread_books_by_author
 
 
 def book_graph_view(request, book_id):
     if state.GRAPH is None:
         return HttpResponse("Graph not built yet", status=400)
 
-    html = visualize_book_ego_graph_interactive(state.GRAPH, book_id)
+    graph = state.GRAPH.copy()
+
+    read_titles = {
+        data["title"].lower().strip()
+        for _, data in graph.nodes(data=True)
+        if data.get("type") == "book"
+    }
+
+    author = graph.nodes[book_id].get("author")
+    if not author:
+        return HttpResponse("Author not found", status=400)
+
+    unread_books = fetch_unread_books_by_author(
+        author=author,
+        read_titles=read_titles,
+        limit=8
+    )
+
+    for book in unread_books:
+        unread_node = f"ol::{book['title']}::{book['author']}"
+
+        if not graph.has_node(unread_node):
+            graph.add_node(
+                unread_node,
+                type="book",
+                title=book["title"],
+                author=book["author"],
+                unread=True,
+                cover_url=book["cover_url"],
+            )
+
+        graph.add_edge(
+            book_id,
+            unread_node,
+            weight=0.6
+        )
+
+    html = visualize_book_ego_graph_interactive(graph, book_id)
     return HttpResponse(html)
 
 

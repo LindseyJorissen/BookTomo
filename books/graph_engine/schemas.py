@@ -1,14 +1,14 @@
-from pydantic import BaseModel, Field
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, List
 
 
-class BookNode(BaseModel):
+@dataclass
+class BookNode:
     id: str
     title: str
     author: str
-    rating: Optional[float] = Field(
-        None,
-        ge=1.0,
-        le=5.0,
-        description="User rating from Goodreads (1–5). Neutral if missing."
-    )
+    rating: Optional[int] = None
+
+    subjects: List[str] = field(default_factory=list)
+    cover_url: Optional[str] = None
+    openlibrary_id: Optional[str] = None

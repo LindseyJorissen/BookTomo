@@ -1,10 +1,12 @@
 from .schemas import BookNode
+from books.openlibrary.client import fetch_work_data
 
 
 def extract_books_from_df(df):
     books = []
 
-    for _, row in df.iterrows():
+    MAX_ENRICH = 25
+    for i, (_, row) in enumerate(df.iterrows()):
         title = row.get("Title")
         author = row.get("Author")
 
@@ -19,7 +21,7 @@ def extract_books_from_df(df):
             id=f"{title}::{author}",
             title=title,
             author=author,
-            rating=rating
+            rating=rating,
         )
 
         books.append(book)

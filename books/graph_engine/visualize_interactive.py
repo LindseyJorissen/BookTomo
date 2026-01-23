@@ -18,21 +18,37 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
     )
 
     ego = graph.subgraph(
-        nx.ego_graph(graph, book_node, radius=2).nodes
+        nx.ego_graph(graph, book_node, radius=4).nodes
     )
 
     for node, data in ego.nodes(data=True):
         node_type = data.get("type")
 
+        distance = nx.shortest_path_length(graph, book_node, node)
+
         if node_type == "book":
             label = data.get("title")
-            color = "#8fa6a0" if node == book_node else "#b7c7c2"
 
-            size = 28 if node == book_node else 18
+            if data.get("unread"):
+                color = "#e6c79c"  # warm gold
+                size = 18
+            else:
+                color = "#8fa6a0" if node == book_node else "#b7c7c2"
+                size = 28 if node == book_node else 20
+
+        elif node_type == "author":
+            label = data.get("name")
+            color = "#c4b7a6"
+            size = 26
 
         else:
             label = data.get("name")
-            color = "#c4b7a6"
+            color = {
+                "background": "#c4b7a6",
+                "border": "#c4b7a6",
+                "opacity": 0.6
+            }
+
             size = 26
 
         net.add_node(
@@ -58,14 +74,14 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
         "enabled": true,
         "solver": "forceAtlas2Based",
         "forceAtlas2Based": {
-          "gravitationalConstant": -40,
-          "centralGravity": 0.01,
-          "springLength": 140,
-          "springConstant": 0.04,
-          "avoidOverlap": 1
+        "gravitationalConstant": -80,
+        "centralGravity": 0.002,
+        "springLength": 200,
+        "springConstant": 0.02,
+        "avoidOverlap": 1
         },
         "stabilization": {
-          "iterations": 200
+          "iterations": 300
         }
       },
       "nodes": {
@@ -97,4 +113,23 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
     }
     """)
 
-    return net.generate_html()
+    html = net.generate_html()
+
+    focus_script = f"""
+    <script type="text/javascript">
+      setTimeout(function() {{
+        if (network && network.body && network.body.data.nodes.get("{book_node}")) {{
+          network.focus("{book_node}", {{
+            scale: 1.2,
+            animation: {{
+              duration: 600,
+              easingFunction: "easeInOutQuad"
+            }}
+          }});
+        }}
+      }}, 300);
+    </script>
+    """
+
+    html = html.replace("</body>", focus_script + "\n</body>")
+    return html

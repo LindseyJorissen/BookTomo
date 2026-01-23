@@ -14,6 +14,7 @@ function App() {
   const [activeView, setActiveView] = useState("stats"); // Stats | Suggestions
   const [timeView, setTimeView] = useState("overall");  // Overall | This Year
   const [selectedBook, setSelectedBook] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
 
 
   // 2. helper functions
@@ -53,6 +54,7 @@ function App() {
 
     const formData = new FormData();
     formData.append("file", file);
+    setIsUploading(true);
 
     try {
       const res = await fetch("http://127.0.0.1:8000/api/upload_goodreads/", {
@@ -72,10 +74,12 @@ function App() {
       setError(null);
 
     } catch (err) {
-      setError(err.message);
-      setStats(null);
-    }
-  };
+    setError(err.message);
+    setStats(null);
+  } finally {
+    setIsUploading(false);
+  }
+};
 
 const handleReset = () => {
   setStats(null);
@@ -90,6 +94,20 @@ const handleReset = () => {
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial" }}>
       <h1>BookTomo</h1>
+{isUploading && (
+  <div className="loading-overlay">
+    <div className="loading-card neu-card">
+      <p>Crunching your books…</p>
+      <div className="loading-bar">
+      <div className="loading-bar-fill"/>
+      </div>
+
+      <p style={{ fontSize: "0.9rem", opacity: 0.7, marginTop: "o.5rem"}}>
+        This can take a moment for large libraries
+      </p>
+    </div>
+  </div>
+)}
 
       {!stats ? (
         <>
