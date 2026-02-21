@@ -169,7 +169,7 @@ def fetch_books_by_author(author, read_titles, limit=10):
     try:
         resp = requests.get(
             GOOGLE_BOOKS_URL,
-            params={"q": f'inauthor:"{author}"', "maxResults": limit + 5, "key": _api_key()},
+            params={"q": f'inauthor:"{author}"', "maxResults": limit + 5, "langRestrict": "en", "key": _api_key()},
             timeout=10,
         )
         resp.raise_for_status()
