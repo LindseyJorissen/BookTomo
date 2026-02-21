@@ -9,23 +9,32 @@ from books.graph_engine import state
 from books.graph_engine.extract import extract_books_from_df
 from books.graph_engine.visualize_interactive import visualize_book_ego_graph_interactive
 from books.openlibrary.background import load_remaining_covers
-from books.openlibrary.client import fetch_unread_books_by_author, normalize_title
+from books.openlibrary.client import (
+    fetch_unread_books_by_author,
+    fetch_books_by_subject,
+    fetch_work_data,
+    normalize_title,
+)
 
 
 def compute_cadence(date_series):
+    """
+    Berekent gemiddeld aantal dagen tussen 2 gelezen boeken, door een reeks datums te vergelijken
+    Geeft None terug als er minder dan 2 datums zijn (kan niet vergelijken met 1 datum)
+    """
     dates = (
-        date_series.dropna()  # removes missing dates
-        .dt.date  # removes timestamp -> keep only day
+        date_series.dropna()       # Lege datums verwijderen
+        .dt.date                   # Tijdstempel → alleen datum
         .drop_duplicates()
-        .sort_values()  # old -> new
+        .sort_values()             # Oud → nieuw sorteren
         .tolist()
     )
 
-    if len(dates) < 2:  # needs at least 2 dates to check time between
+    if len(dates) < 2:
         return None
 
-    gaps = [(dates[i] - dates[i - 1]).days for i in
-            range(1, len(dates))]  # example: date(2023, 1, 10) - date(2023, 1, 5) -> gaps = [5]
+    # Bereken het aantal dagen tussen leesbeurten
+    gaps = [(dates[i] - dates[i - 1]).days for i in range(1, len(dates))]
 
     return {
         "avg_days": round(sum(gaps) / len(gaps), 1),
@@ -37,27 +46,33 @@ def compute_cadence(date_series):
     }
 
 
-@csrf_exempt  # Do not require a CSRF token (testing)
+@csrf_exempt  # voor lokaal testen - frontend en backend draaien apart, anders krijg je foutmeldingen
 def upload_goodreads(request):
+    """
+    Verwerkt een geüploade Goodreads-CSV en retourneert leesstatistieken als JSON.
+    Bouwt ook de globale graaf en start een achtergrondthread voor ontbrekende omslagen.
+    """
     if request.method != "POST":
-        return JsonResponse({"error": "POST required"},
-                            status=400)  # file upload is post -> reject any request that's not POST
+        return JsonResponse({"error": "POST required"}, status=400)
 
     file = request.FILES.get("file")
     if not file:
-        return JsonResponse({"error": "No file uploaded"},
-                            status=400)  # take the file that's uploaded in a dict -> otherwise error
+        return JsonResponse({"error": "No file uploaded"}, status=400)
 
     df = pd.read_csv(file)
+
+    # Filter alleen gelezen boeken (als die kolom zelfs aanwezig is)
     read_df = df
     if "Exclusive Shelf" in df.columns:
         read_df = df[df["Exclusive Shelf"] == "read"]
 
+    # Zet CSV-data om naar 'BookNodes' en genereer de auteur-graaf
     read_books = extract_books_from_df(read_df)
     state.BOOK_NODES = read_books
     from books.graph_engine.builder import build_author_graph
     state.GRAPH = build_author_graph(read_books)
 
+    # Datumkolommen aanmaken voor statistieken
     df["Date Read"] = pd.to_datetime(df.get("Date Read"), errors="coerce")
     df["Year Read"] = df["Date Read"].dt.year
     df["Month Read"] = df["Date Read"].dt.month
@@ -68,6 +83,7 @@ def upload_goodreads(request):
     cadence_overall = compute_cadence(df["Date Read"])
     cadence_this_year = compute_cadence(df_current_year["Date Read"])
 
+    # Aantal gelezen boeken per jaar (voor staafdiagram)
     yearly_counts = (
         df["Year Read"]
         .dropna()
@@ -76,6 +92,7 @@ def upload_goodreads(request):
         .to_dict()
     )
 
+    # Aantal gelezen boeken per maand in het huidige jaar
     monthly_counts = (
         df_current_year["Month Read"]
         .dropna()
@@ -98,6 +115,7 @@ def upload_goodreads(request):
         if not years.empty:
             oldest_pub_year = int(years.min())
 
+        # Aantal boeken per publicatiejaar (all time)
         pub_counts_all = (
             years.astype(int)
             .value_counts()
@@ -105,6 +123,7 @@ def upload_goodreads(request):
             .to_dict()
         )
 
+        # Aantal boeken per publicatiejaar (alleen dit jaar gelezen)
         pub_counts_this_year = (
             df_current_year["Original Publication Year"]
             .dropna()
@@ -116,6 +135,7 @@ def upload_goodreads(request):
             else {}
         )
 
+    # Scatterplot-datapunten: publicatiejaar vs. jaar gelezen
     scatter_points_all = [
         {
             "pub_year": int(row["Original Publication Year"]),
@@ -126,6 +146,7 @@ def upload_goodreads(request):
         .iterrows()
     ]
 
+    # Scatterplot-datapunten: publicatiejaar vs. maand gelezen (dit jaar)
     scatter_points_this_year = [
         {
             "pub_year": int(row["Original Publication Year"]),
@@ -139,6 +160,7 @@ def upload_goodreads(request):
     ]
 
     def compute_stats(subset):
+        """Berekent samenvattende statistieken voor een subset van het dataframe."""
         if subset.empty:
             return {
                 "total_books": 0,
@@ -149,7 +171,7 @@ def upload_goodreads(request):
 
         avg_rating = 0
         if "My Rating" in subset.columns:
-            rated = subset[subset["My Rating"] > 0]
+            rated = subset[subset["My Rating"] > 0]  # Goodreads slaat 0 op als 'niet beoordeeld'
             if not rated.empty:
                 avg_rating = round(rated["My Rating"].mean(), 2)
 
@@ -157,6 +179,7 @@ def upload_goodreads(request):
             subset["Number of Pages"].fillna(0).sum()
         )
 
+        # Meest voorkomende auteur
         top_author = (
             subset["Author"].mode()[0]
             if "Author" in subset.columns
@@ -171,17 +194,22 @@ def upload_goodreads(request):
         }
 
     def compute_book_lengths(subset):
+        """
+        Berekent paginastatistieken: gemiddelde, langste boek en histogram per paginabereik.
+        Geeft None terug als er geen paginadata beschikbaar is.
+        """
         pages = subset["Number of Pages"].dropna()
         if pages.empty:
             return None
 
         longest = subset.loc[pages.idxmax()]
 
+        # Verdeel paginaantallen in intervallen voor het histogram
         bins = [
-            (0, 200, "0–200"),
-            (200, 300, "200–300"),
-            (300, 400, "300–400"),
-            (400, 500, "400–500"),
+            (0, 200, "0-200"),
+            (200, 300, "200-300"),
+            (300, 400, "300-400"),
+            (400, 500, "400-500"),
             (500, float("inf"), "500+"),
         ]
 
@@ -205,22 +233,32 @@ def upload_goodreads(request):
             "histogram": histogram,
         }
 
-    stats = {"overall": {
-        **compute_stats(read_df),
-        "cadence": cadence_overall,
-    }, "this_year": {
-        **compute_stats(df_current_year),
-        "cadence": cadence_this_year,
-    }, "yearly_books": yearly_counts, "monthly_books": monthly_counts, "publication_years_overall": pub_counts_all,
-        "publication_years_this_year": pub_counts_this_year, "scatter_publication_vs_read_all": scatter_points_all,
-        "scatter_publication_vs_read_year": scatter_points_this_year, "book_lengths": {
+    stats = {
+        "overall": {
+            **compute_stats(read_df),
+            "cadence": cadence_overall,
+        },
+        "this_year": {
+            **compute_stats(df_current_year),
+            "cadence": cadence_this_year,
+        },
+        "yearly_books": yearly_counts,
+        "monthly_books": monthly_counts,
+        "publication_years_overall": pub_counts_all,
+        "publication_years_this_year": pub_counts_this_year,
+        "scatter_publication_vs_read_all": scatter_points_all,
+        "scatter_publication_vs_read_year": scatter_points_this_year,
+        "book_lengths": {
             "overall": compute_book_lengths(read_df),
             "this_year": compute_book_lengths(
+                # Filter op gelezen boeken
                 df_current_year[df_current_year["Exclusive Shelf"] == "read"]
                 if "Exclusive Shelf" in df_current_year.columns
                 else df_current_year
             ),
-        }, "oldest_pub_year": oldest_pub_year, "books": [
+        },
+        "oldest_pub_year": oldest_pub_year,
+        "books": [
             {
                 "id": book.id,
                 "title": book.title,
@@ -228,8 +266,10 @@ def upload_goodreads(request):
                 "cover_url": book.cover_url,
             }
             for book in read_books
-        ]}
+        ],
+    }
 
+    # Start achtergrondthread voor omslagen die nog niet zijn opgehaald
     threading.Thread(
         target=load_remaining_covers,
         daemon=True
@@ -239,11 +279,21 @@ def upload_goodreads(request):
 
 
 def book_graph_view(request, book_id):
+    """
+    Genereert een interactieve ego-graaf rondom het geselecteerde boek.
+    
+    Voegt twee soorten aanbevelingen toe aan de graaf:
+      1. Ongelezen boeken van dezelfde auteur
+      2. Boeken met gemeenschappelijke onderwerpen als het geselecteerde boek (via OpenLibrary)
+    Return: een PyVis-gegenereerde HTML weergave
+    """
     if state.GRAPH is None:
         return HttpResponse("Graph not built yet", status=400)
 
+    # Werk op een kopie zodat de globale graaf niet wordt aangepast
     graph = state.GRAPH.copy()
 
+    # Verzamel genormaliseerde titels van gelezen boeken (duplicaten voorkomen)
     read_titles = {
         normalize_title(data["title"]).lower()
         for _, data in graph.nodes(data=True)
@@ -254,6 +304,7 @@ def book_graph_view(request, book_id):
     if not author:
         return HttpResponse("Author not found", status=400)
 
+    # --- Aanbevelingen op basis van auteur ---
     unread_books = fetch_unread_books_by_author(
         author=author,
         read_titles=read_titles,
@@ -281,17 +332,89 @@ def book_graph_view(request, book_id):
             weight=0.6
         )
 
+        # Zorg dat de auteursknoop in de (gekopieerde) graaf bestaat
         author_node = f"author::{author}"
         if not graph.has_node(author_node):
             graph.add_node(author_node, type="author", name=author)
 
         graph.add_edge(unread_node, author_node, weight=0.4)
 
+    # --- Aanbevelingen op basis van onderwerp ---
+    # Bereken voor elk onderwerp in de graaf een score op basis van de beoordelingen
+    # van gelezen boeken die dat onderwerp delen. Hogere beoordelingen = hogere score.
+    subject_scores = {}
+    for node, data in graph.nodes(data=True):
+        if data.get("type") != "subject":
+            continue
+        subject_name = data.get("name", "")
+        for neighbor in graph.neighbors(node):
+            nb_data = graph.nodes.get(neighbor, {})
+            if nb_data.get("type") == "book" and not nb_data.get("unread"):
+                subject_scores[subject_name] = (
+                    subject_scores.get(subject_name, 0) + (nb_data.get("rating") or 3)
+                )
+
+    # Haal onderwerpen op voor het geselecteerde boek (gecached na eerste aanroep)
+    book_title = graph.nodes.get(book_id, {}).get("title", "")
+    work_data = fetch_work_data(book_title, author) if book_title else None
+    book_subjects = work_data.get("subjects", []) if work_data else []
+
+    # Neem de top 3 onderwerpen gesorteerd op score in de persoonlijke leesgeschiedenis
+    ranked_subjects = sorted(
+        book_subjects,
+        key=lambda s: subject_scores.get(s, 0),
+        reverse=True,
+    )[:3]
+
+    # Bijhouden welke titels al zijn toegevoegd (via auteur) om duplicaten te voorkomen
+    already_added = {
+        normalize_title(b["title"]).lower() for b in unread_books
+    }
+
+    for subject in ranked_subjects:
+        subject_node = f"subject::{subject}"
+        if not graph.has_node(subject_node):
+            graph.add_node(subject_node, type="subject", name=subject)
+
+        # Verbind het geselecteerde boek met dit onderwerp als dat nog niet bestaat
+        if not graph.has_edge(book_id, subject_node):
+            graph.add_edge(book_id, subject_node, weight=0.8)
+
+        for book in fetch_books_by_subject(subject, limit=5):
+            norm = normalize_title(book["title"]).lower()
+            if norm in read_titles or norm in already_added:
+                continue
+
+            unread_node = f"ol::{book['title']}::{book['author']}"
+            if not graph.has_node(unread_node):
+                graph.add_node(
+                    unread_node,
+                    type="book",
+                    title=book["title"],
+                    author=book["author"],
+                    unread=True,
+                    cover_url=book["cover_url"],
+                )
+
+            graph.add_edge(
+                unread_node,
+                subject_node,
+                type="recommendation",
+                reason=f"Deelt onderwerp: {subject}",
+                weight=0.5,
+            )
+            already_added.add(norm)
+
     html = visualize_book_ego_graph_interactive(graph, book_id)
     return HttpResponse(html)
 
 
 def book_covers_view(request):
+    """
+    Returned alle bekende omslagfoto's als JSON.
+    Wordt aangeroepen vanuit de frontend om omslagen bij te werken
+    die door het achtergrondproces zijn ingeladen na het uploaden.
+    """
     return JsonResponse({
         "covers": [
             {

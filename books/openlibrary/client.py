@@ -8,20 +8,25 @@ BASE_URL = "https://openlibrary.org"
 
 
 def safe_cache_key(raw_key: str) -> str:
+    """Zet een willekeurige string om naar een veilige MD5-cachesleutel (geen spaties of speciale tekens)."""
     return hashlib.md5(raw_key.encode("utf-8")).hexdigest()
 
 
 def normalize_title(title: str) -> str:
-    # remove series info and subtitles
-    title = re.sub(r"\(.*?\)", "", title)  # remove (Series, #)
-    title = title.split(":")[0]  # remove subtitles
+    """
+    Verwijdert reeksinformatie en ondertitels voor betrouwbaarder vergelijken.
+    Voorbeeld: "Dune (Dune, #1): The Beginning" → "Dune"
+    """
+    title = re.sub(r"\(.*?\)", "", title)  # Verwijder (Reeks, #nummer)
+    title = title.split(":")[0]            # Verwijder ondertitel na dubbele punt
     return title.strip()
 
 
 def fetch_cover_for_read_book(title, author):
     """
-    Fetch a best-effort cover for a READ book.
-    Uses author-based search for robustness.
+    Haalt een omslagfoto op voor een gelezen boek via de OpenLibrary zoekAPI.
+    Probeert eerst de zoekresultaten, dan de editie-API als fallback.
+    Slaat het resultaat 24 uur op in de cache (ook als er geen omslag gevonden wordt).
     """
     raw_key = f"read_cover::{title}::{author}"
     cache_key = safe_cache_key(raw_key)
@@ -47,12 +52,14 @@ def fetch_cover_for_read_book(title, author):
     docs = response.json().get("docs", [])
 
     for doc in docs:
+        # Directe omslagafbeelding beschikbaar in zoekresultaat
         cover_id = doc.get("cover_i")
         if cover_id:
             cover_url = f"https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
             cache.set(cache_key, cover_url, 86400)
             return cover_url
 
+        # Fallback: haal omslag op via de editie-API
         edition_keys = doc.get("edition_key", [])
         if not edition_keys:
             continue
@@ -79,6 +86,11 @@ def fetch_cover_for_read_book(title, author):
 
 
 def search_by_author(author_name, limit=10):
+    """
+    Zoekt boeken op auteursnaam via OpenLibrary.
+    Resultaten worden 24 uur gecached.
+    Opmerking: deze functie heeft geen foutafhandeling — gebruikt voor intern gebruik.
+    """
     cache_key = f"openlibrary_author_{author_name}_{limit}"
 
     cached = cache.get(cache_key)
@@ -102,6 +114,10 @@ def search_by_author(author_name, limit=10):
 
 
 def normalize_books(openlibrary_json):
+    """
+    Zet een OpenLibrary zoekresultaat om naar een genormaliseerde lijst van boekdicts.
+    Filtert resultaten zonder titel of auteur.
+    """
     books = []
 
     for doc in openlibrary_json.get("docs", []):
@@ -120,7 +136,7 @@ def normalize_books(openlibrary_json):
                 if cover_id
                 else None
             ),
-            "openlibrary_id": doc.get("key"),  # e.g. /works/OL123W
+            "openlibrary_id": doc.get("key"),  # bijv. /works/OL123W
             "first_publish_year": doc.get("first_publish_year"),
         })
 
@@ -128,11 +144,17 @@ def normalize_books(openlibrary_json):
 
 
 def fetch_work_data(title, author):
+    """
+    Haalt OpenLibrary-werkdata op voor één boek: onderwerpen, omslag en work-ID.
+    Gebruikt genormaliseerde titel (zonder reeks/ondertitel) voor betere trefkans.
+    Resultaat wordt 24 uur gecached.
+    """
     cache_key = f"openlibrary_work::{safe_cache_key(title + author)}"
     clean_title = normalize_title(title)
     cached = cache.get(cache_key)
     if cached:
         return cached
+
     try:
         response = requests.get(
             f"{BASE_URL}/search.json",
@@ -160,7 +182,7 @@ def fetch_work_data(title, author):
 
     data = {
         "openlibrary_id": work_id,
-        "subjects": doc.get("subject", [])[:8],
+        "subjects": doc.get("subject", [])[:8],  # Max 8 onderwerpen
         "cover_url": cover_url,
     }
 
@@ -168,16 +190,64 @@ def fetch_work_data(title, author):
     return data
 
 
+def fetch_books_by_subject(subject, limit=8):
+    """
+    Haalt boeken op via het OpenLibrary onderwerpen-eindpunt (/subjects/{slug}.json).
+    Zet het onderwerp om naar een URL-vriendelijke slug (bijv. "Science Fiction" → "science_fiction").
+    Resultaten worden 24 uur gecached. Geeft een lege lijst terug bij een fout.
+    """
+    cache_key = safe_cache_key(f"subject_books::{subject}::{limit}")
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    # Zet het onderwerp om naar een URL-slug
+    subject_slug = re.sub(r"[^a-z0-9]+", "_", subject.lower().strip()).strip("_")
+    url = f"{BASE_URL}/subjects/{subject_slug}.json"
+
+    try:
+        response = requests.get(url, params={"limit": limit}, timeout=5)
+        response.raise_for_status()
+    except Exception:
+        cache.set(cache_key, [], 86400)
+        return []
+
+    books = []
+    for work in response.json().get("works", []):
+        title = work.get("title")
+        authors = work.get("authors", [])
+        if not title or not authors:
+            continue
+
+        cover_id = work.get("cover_id")
+        books.append({
+            "title": title,
+            "author": authors[0].get("name", ""),
+            "cover_url": (
+                f"https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
+                if cover_id
+                else None
+            ),
+            "openlibrary_id": work.get("key"),
+        })
+
+    cache.set(cache_key, books, 86400)
+    return books
+
+
 def fetch_unread_books_by_author(author, read_titles, limit=10):
     """
-    Fetch unread books by the same author from Open Library.
-    Filters out already-read titles.
+    Haalt ongelezen boeken van dezelfde auteur op via OpenLibrary.
+    Slaat de volledige resultatenlijst op in de cache, en past daarna het filter
+    toe op read_titles — zo blijft de cache herbruikbaar ongeacht welke titels al gelezen zijn.
+    Geeft een lege lijst terug bij een netwerkfout.
     """
     raw_key = f"unread_by_author::{author}::{limit}"
     cache_key = safe_cache_key(raw_key)
 
     cached = cache.get(cache_key)
     if cached is not None:
+        # Filter al-gelezen titels na het ophalen uit de cache
         return [b for b in cached if normalize_title(b["title"]).lower() not in read_titles]
 
     url = f"{BASE_URL}/search.json"

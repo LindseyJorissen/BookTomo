@@ -9,18 +9,20 @@ function App() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
 
-  const [showTutorial, setShowTutorial] = useState(false); // Goodreads csv tutorial showen
+  const [showTutorial, setShowTutorial] = useState(false); // Zichtbaarheid van de Goodreads-exportuitleg
+  const [activeView, setActiveView] = useState("stats");   // Actief tabblad: "stats" of "suggestions"
+  const [timeView, setTimeView] = useState("overall");     // Tijdsbereik: "overall" of "this_year"
+  const [selectedBook, setSelectedBook] = useState(null);  // Huidig geselecteerd boek voor de graaf
+  const [isUploading, setIsUploading] = useState(false);   // Of de CSV momenteel wordt verwerkt (voor laadbalk)
 
-  const [activeView, setActiveView] = useState("stats"); // Stats | Suggestions
-  const [timeView, setTimeView] = useState("overall");  // Overall | This Year
-  const [selectedBook, setSelectedBook] = useState(null); // re-center geselecteerd boek
-  const [isUploading, setIsUploading] = useState(false); // Uploaden in progress -> voor laadbalk
+  // Paginastatistieken voor het huidige tijdsbereik
   const bookLengths = stats?.book_lengths?.[timeView];
 
   const getOldestPublicationYear = () => {
     return stats?.oldest_pub_year;
   };
 
+  // Beschrijvende tekst onder het leesritme-diagram, afhankelijk van het tijdsbereik
   const getReadingOverTimeText = () => {
     const s = stats[timeView];
     if (!s) return "";
@@ -31,6 +33,7 @@ function App() {
  Your reading activity varies across the months.`;
   };
 
+  // Beschrijvende tekst onder het publicatiejaar-diagram
   const getPublicationTimingText = () => {
     if (!stats) return "";
 
@@ -44,6 +47,7 @@ function App() {
        ${oldestYear ? `The oldest one dates back to ${oldestYear}.` : ""}`;
   };
 
+  // Verwerkt het gekozen CSV-bestand en stuurt het naar de backend
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -65,7 +69,7 @@ function App() {
       const data = await res.json();
 
       setStats(data);
-      setSelectedBook(data.books[0]);
+      setSelectedBook(data.books[0]); // Selecteer het eerste boek standaard voor de graaf
       setActiveView("stats");
       setError(null);
       console.log("First book:", data.books[0]);
@@ -77,6 +81,9 @@ function App() {
     setIsUploading(false);
   }
 };
+
+// Polt elke 3 seconden de /covers/ endpoint om omslagen bij te werken
+// die door het achtergrondproces zijn ingeladen na het uploaden
 useEffect(() => {
   if (!stats) return;
 
@@ -86,6 +93,7 @@ useEffect(() => {
 
     if (data.covers.length === 0) return;
 
+    // Werk individuele boeken bij zonder de hele stats-state te vervangen
     setStats(prev => {
       const updated = { ...prev };
       updated.books = updated.books.map(book => {
@@ -94,11 +102,12 @@ useEffect(() => {
       });
       return updated;
     });
-  }, 3000); // every 3s
+  }, 3000);
 
-  return () => clearInterval(interval);
+  return () => clearInterval(interval); // Opruimen bij unmount of nieuwe stats
 }, [stats]);
 
+// Zet de applicatie terug naar de begintoestand
 const handleReset = () => {
   setStats(null);
   setSelectedBook(null);
@@ -108,7 +117,7 @@ const handleReset = () => {
 };
 
 
-  // 4. render
+  // Render
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial" }}>
       <h1>BookTomo</h1>
@@ -327,11 +336,11 @@ const handleReset = () => {
       </div>
     </div>
       {selectedBook ? (
+        /* Laad de graaf als iframe: de backend genereert de pyvis-HTML per boek */
         <iframe
-          src={`http://localhost:8000/api/graph/${encodeURIComponent(`book::${selectedBook.id}`)}`}
+          src={`http://localhost:8000/api/graph/${encodeURIComponent("book::" + selectedBook.id)}`}
           width="100%"
           height="85%"
-          minHeight= "500px"
           style={{ border: "none", borderRadius: "16px" }}
           title="Book Graph"
         />
