@@ -1,3 +1,5 @@
+import json
+
 from pyvis.network import Network
 import networkx as nx
 
@@ -40,6 +42,8 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
         nx.ego_graph(graph, book_node, radius=4).nodes
     )
 
+    click_node_info = {}
+
     for node, data in ego.nodes(data=True):
         node_type = data.get("type")
         tooltip = ""
@@ -52,6 +56,11 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
             if data.get("unread"):
                 color = "#e6c79c"  # Warm goud voor ongelezen aanbevelingen
                 size = 18
+                click_node_info[node] = {
+                    "title": full_title,
+                    "author": data.get("author", ""),
+                    "reason": data.get("reason", ""),
+                }
             else:
                 # Geselecteerd boek is groter en donkerder dan de rest
                 color = "#8fa6a0" if node == book_node else "#b7c7c2"
@@ -139,9 +148,31 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
 
     html = net.generate_html()
 
-    # Voeg een script toe dat de camera na het laden op het geselecteerde boek centreert
-    focus_script = f"""
+    node_info_json = json.dumps(click_node_info)
+
+    injected_script = f"""
+    <div id="book-tooltip" style="
+        display: none;
+        position: fixed;
+        bottom: 16px;
+        left: 16px;
+        background: #f5f2eb;
+        border: 1px solid #c4b7a6;
+        border-radius: 10px;
+        padding: 12px 16px;
+        max-width: 280px;
+        z-index: 999;
+        box-shadow: 3px 3px 8px rgba(0,0,0,0.12), -2px -2px 5px rgba(255,255,255,0.7);
+        font-family: Arial, sans-serif;
+        font-size: 13px;
+        color: #4c483c;
+        line-height: 1.5;
+    "></div>
     <script type="text/javascript">
+      var nodeInfo = {node_info_json};
+
+      var tooltip = document.getElementById("book-tooltip");
+
       setTimeout(function() {{
         if (network && network.body && network.body.data.nodes.get("{book_node}")) {{
           network.focus("{book_node}", {{
@@ -152,9 +183,25 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
             }}
           }});
         }}
+
+        network.on("click", function(params) {{
+          if (params.nodes.length > 0) {{
+            var info = nodeInfo[params.nodes[0]];
+            if (info) {{
+              tooltip.innerHTML =
+                "<span style='font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#a39988;'>Why suggested?</span><br>" +
+                "<strong style='font-size:14px;'>" + info.title + "</strong><br>" +
+                "<span style='color:#7a7060;'>By " + info.author + "</span><br>" +
+                "<span style='display:block; margin-top:4px; font-style:italic;'>" + info.reason + "</span>";
+              tooltip.style.display = "block";
+              return;
+            }}
+          }}
+          tooltip.style.display = "none";
+        }});
       }}, 300);
     </script>
     """
 
-    html = html.replace("</body>", focus_script + "\n</body>")
+    html = html.replace("</body>", injected_script + "\n</body>")
     return html

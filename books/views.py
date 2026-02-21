@@ -322,13 +322,13 @@ def book_graph_view(request, book_id):
                 author=book["author"],
                 unread=True,
                 cover_url=book["cover_url"],
+                reason=f"Same author as {author}",
             )
 
         graph.add_edge(
             book_id,
             unread_node,
             type="recommendation",
-            reason=f"Geschreven door dezelfde auteur ({author})",
             weight=0.6
         )
 
@@ -394,13 +394,13 @@ def book_graph_view(request, book_id):
                     author=book["author"],
                     unread=True,
                     cover_url=book["cover_url"],
+                    reason=f"Shares subject: {subject}",
                 )
 
             graph.add_edge(
                 unread_node,
                 subject_node,
                 type="recommendation",
-                reason=f"Deelt onderwerp: {subject}",
                 weight=0.5,
             )
             already_added.add(norm)
