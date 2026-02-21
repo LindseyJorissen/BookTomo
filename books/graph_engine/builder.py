@@ -42,9 +42,4 @@ def build_author_graph(books):
             author_node,
             weight=1.0 * rating_multiplier
         )
-    print(
-        "Subject nodes:",
-        [n for n, d in G.nodes(data=True) if d.get("type") == "subject"][:10]
-    )
-
     return G

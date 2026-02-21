@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import "./App.css";
 import YearlyBookChart from "./YearlyBookChart";
 import PublicationVsReadChart from "./PublicationVsReadChart";
@@ -6,18 +6,15 @@ import BookLengthChart from "./BookLengthChart";
 import BookGraph from "./components/BookGraph";
 
 function App() {
-  // 1. state
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
-  const [showTutorial, setShowTutorial] = useState(false);
+
+  const [showTutorial, setShowTutorial] = useState(false); // Goodreads csv tutorial showen
 
   const [activeView, setActiveView] = useState("stats"); // Stats | Suggestions
   const [timeView, setTimeView] = useState("overall");  // Overall | This Year
-  const [selectedBook, setSelectedBook] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
-
-
-  // 2. helper functions
+  const [selectedBook, setSelectedBook] = useState(null); // re-center geselecteerd boek
+  const [isUploading, setIsUploading] = useState(false); // Uploaden in progress -> voor laadbalk
   const bookLengths = stats?.book_lengths?.[timeView];
 
   const getOldestPublicationYear = () => {
@@ -47,7 +44,6 @@ function App() {
        ${oldestYear ? `The oldest one dates back to ${oldestYear}.` : ""}`;
   };
 
-  // 3. handlers
   const handleUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -72,6 +68,7 @@ function App() {
       setSelectedBook(data.books[0]);
       setActiveView("stats");
       setError(null);
+      console.log("First book:", data.books[0]);
 
     } catch (err) {
     setError(err.message);
@@ -80,6 +77,27 @@ function App() {
     setIsUploading(false);
   }
 };
+useEffect(() => {
+  if (!stats) return;
+
+  const interval = setInterval(async () => {
+    const res = await fetch("http://127.0.0.1:8000/api/covers/");
+    const data = await res.json();
+
+    if (data.covers.length === 0) return;
+
+    setStats(prev => {
+      const updated = { ...prev };
+      updated.books = updated.books.map(book => {
+        const found = data.covers.find(c => c.id === book.id);
+        return found ? { ...book, cover_url: found.cover_url } : book;
+      });
+      return updated;
+    });
+  }, 3000); // every 3s
+
+  return () => clearInterval(interval);
+}, [stats]);
 
 const handleReset = () => {
   setStats(null);
@@ -94,20 +112,20 @@ const handleReset = () => {
   return (
     <div style={{ padding: "2rem", fontFamily: "Arial" }}>
       <h1>BookTomo</h1>
-{isUploading && (
-  <div className="loading-overlay">
-    <div className="loading-card neu-card">
-      <p>Crunching your books…</p>
-      <div className="loading-bar">
-      <div className="loading-bar-fill"/>
-      </div>
+    {isUploading && (
+      <div className="loading-overlay">
+        <div className="loading-card neu-card">
+          <p>Crunching your books…</p>
+          <div className="loading-bar">
+          <div className="loading-bar-fill"/>
+          </div>
 
-      <p style={{ fontSize: "0.9rem", opacity: 0.7, marginTop: "o.5rem"}}>
-        This can take a moment for large libraries
-      </p>
-    </div>
-  </div>
-)}
+          <p style={{ fontSize: "0.9rem", opacity: 0.7, marginTop: "o.5rem"}}>
+            This can take a moment for large libraries
+          </p>
+        </div>
+      </div>
+    )}
 
       {!stats ? (
         <>
@@ -176,7 +194,6 @@ const handleReset = () => {
       {stats && (
       <div className="stats-container">
         <div className="stats-box neu-card">
-          {/* Row 1–2: stats (left) */}
             <div className="stats-box-header" style={{ gridRow: "span 2" }}>
                 <div className="view-toggle">
                   <button
@@ -207,7 +224,6 @@ const handleReset = () => {
             <p>Longest gap: {stats[timeView].cadence.slowest_days} days</p>
           </div>
 
-          {/* Row 1: charts */}
           <div className="chart-box neu-card">
             {timeView === "overall" && <YearlyBookChart yearlyData={stats.yearly_books} type="year" />}
             {timeView === "this_year" && <YearlyBookChart yearlyData={stats.monthly_books} type="month" />}
@@ -220,7 +236,6 @@ const handleReset = () => {
             )}
           </div>
 
-          {/* Row 2: text */}
           <div className="info-box neu-card">
             <h3>Reading over time</h3>
             <p>{getReadingOverTimeText()}</p>
@@ -231,7 +246,6 @@ const handleReset = () => {
             <p>{getPublicationTimingText()}</p>
           </div>
 
-          {/* Row 3: book length chart */}
           <div className="right-grid">
             <div className="chart-stack">
               <div className="chart-box neu-card" style={{ gridColumn: "1 / 2" }}>
@@ -242,7 +256,7 @@ const handleReset = () => {
                 {bookLengths && (
                   <>
                     <p>
-                      On average, your books are about <strong>{stats.book_lengths.average_pages}</strong> pages long.
+                      On average, your books are about <strong>{bookLengths?.average_pages}</strong> pages long.
                     </p>
 
                     {bookLengths?.longest_book &&
@@ -267,32 +281,57 @@ const handleReset = () => {
 {activeView === "suggestions" && stats && (
   <div className="suggestions-layout">
 
-    {/* LEFT: book selector */}
     <div className="book-list neu-card">
       <h3>Your books</h3>
 
       <div className="book-list-scroll">
         {stats.books.map((book) => (
           <button
-            key={book.id}
-            className="book-item"
-            onClick={() => setSelectedBook(book)}
-          >
-            <strong>{book.title}</strong>
-            <div className="book-author">{book.author}</div>
-          </button>
+  key={book.id}
+  className={`book-item ${selectedBook?.id === book.id ? "active" : ""}`}
+  onClick={() => setSelectedBook(book)}
+>
+  <img
+    src={book.cover_url || "/placeholder-book.png"}
+    alt={book.title}
+    className="book-cover"
+    loading="lazy"
+  />
+
+  <div className="book-meta">
+    <strong>{book.title}</strong>
+    <div className="book-author">{book.author}</div>
+  </div>
+</button>
+
         ))}
       </div>
     </div>
 
-    {/* RIGHT: graph */}
+
     <div className="graph-container neu-card">
+    <div className="graph-legend neu-card">
+      <div className="legend-item">
+        <span className="legend-dot read"></span>
+        <span>Read book</span>
+      </div>
+
+      <div className="legend-item">
+        <span className="legend-dot unread"></span>
+        <span>Unread recommendation</span>
+      </div>
+
+      <div className="legend-item">
+        <span className="legend-dot author"></span>
+        <span>Author</span>
+      </div>
+    </div>
       {selectedBook ? (
         <iframe
           src={`http://localhost:8000/api/graph/${encodeURIComponent(`book::${selectedBook.id}`)}`}
           width="100%"
-          height="100%"
-          minHeight= "650px"
+          height="85%"
+          minHeight= "500px"
           style={{ border: "none", borderRadius: "16px" }}
           title="Book Graph"
         />

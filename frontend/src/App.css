@@ -229,7 +229,7 @@ margin-top: 1rem;
 
 .suggestions-layout {
 height: 100%;
-min-height: 650px;
+min-height: 700px;
   display: grid;
   grid-template-columns: 280px 1fr;
   gap: 2rem;
@@ -238,7 +238,7 @@ min-height: 650px;
 
 .book-list {
   padding: 1rem;
-  height: 600px;
+  height: 700px;
   display: flex;
   flex-direction: column;
 }
@@ -319,4 +319,63 @@ min-height: 650px;
   100% {
     transform: translateX(200%);
   }
+}
+.graph-legend {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.legend-dot.read {
+  background: #8fa6a0;
+}
+
+.legend-dot.unread {
+  background: #e0b57a;
+}
+
+.legend-dot.author {
+  background: #c4b7a6;
+}
+.book-item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  text-align: left;
+  border-radius: 12px;
+}
+
+.book-item.active {
+  box-shadow: inset 3px 3px 6px #d6d3c9,
+              inset -3px -3px 6px #ffffff;
+}
+
+.book-cover {
+  width: 80px;
+  height: 130px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.book-meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  font-size: 0.85rem;
 }

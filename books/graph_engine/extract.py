@@ -1,11 +1,15 @@
 from .schemas import BookNode
-from books.openlibrary.client import fetch_work_data
+from books.openlibrary.client import (
+    fetch_work_data,
+    fetch_cover_for_read_book,
+)
+
+MAX_COVER_LOOKUPS = 10
 
 
 def extract_books_from_df(df):
     books = []
 
-    MAX_ENRICH = 25
     for i, (_, row) in enumerate(df.iterrows()):
         title = row.get("Title")
         author = row.get("Author")
@@ -23,6 +27,15 @@ def extract_books_from_df(df):
             author=author,
             rating=rating,
         )
+
+        if i < MAX_COVER_LOOKUPS:
+            work = fetch_work_data(title, author)
+            if work:
+                book.openlibrary_id = work.get("openlibrary_id")
+                book.cover_url = work.get("cover_url")
+
+            if not book.cover_url:
+                book.cover_url = fetch_cover_for_read_book(title, author)
 
         books.append(book)
 

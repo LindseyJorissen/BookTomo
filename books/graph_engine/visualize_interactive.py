@@ -2,6 +2,12 @@ from pyvis.network import Network
 import networkx as nx
 
 
+def truncate(text, max_len=30):
+    if not text:
+        return ""
+    return text if len(text) <= max_len else text[:27] + "…"
+
+
 def visualize_book_ego_graph_interactive(graph, focus_book_id):
     book_node = focus_book_id
 
@@ -23,11 +29,12 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
 
     for node, data in ego.nodes(data=True):
         node_type = data.get("type")
-
-        distance = nx.shortest_path_length(graph, book_node, node)
+        tooltip = ""
 
         if node_type == "book":
-            label = data.get("title")
+            full_title = data.get("title", "")
+            label = truncate(full_title)
+            tooltip = full_title
 
             if data.get("unread"):
                 color = "#e6c79c"  # warm gold
@@ -37,7 +44,8 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                 size = 28 if node == book_node else 20
 
         elif node_type == "author":
-            label = data.get("name")
+            label = data.get("name", "")
+            tooltip = f"Auteur: {label}"
             color = "#c4b7a6"
             size = 26
 
@@ -53,8 +61,8 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
 
         net.add_node(
             node,
-            label=None,
-            title=label,
+            label=label,
+            title=tooltip,
             color=color,
             size=size
         )
@@ -64,6 +72,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
             source,
             target,
             value=data.get("weight", 1.0),
+            title=data.get("title"),
             color="rgba(120, 110, 90, 0.35)",
             smooth=True
         )
@@ -87,7 +96,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
       "nodes": {
         "borderWidth": 0,
         "font": {
-          "size": 14,
+          "size": 13,
           "face": "Arial",
           "color": "#4c483c",
           "strokeWidth": 0
