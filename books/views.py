@@ -8,6 +8,11 @@ from django.views.decorators.csrf import csrf_exempt
 from books.graph_engine import state
 from books.graph_engine.extract import extract_books_from_df
 from books.graph_engine.visualize_interactive import visualize_book_ego_graph_interactive
+from books.googlebooks.client import (
+    fetch_book_data as gb_fetch_book_data,
+    fetch_books_by_genre,
+    fetch_books_by_author as gb_fetch_books_by_author,
+)
 from books.openlibrary.background import load_remaining_covers
 from books.openlibrary.client import (
     fetch_unread_books_by_author,
@@ -304,15 +309,13 @@ def book_graph_view(request, book_id):
     if not author:
         return HttpResponse("Author not found", status=400)
 
-    # --- Aanbevelingen op basis van auteur ---
-    unread_books = fetch_unread_books_by_author(
-        author=author,
-        read_titles=read_titles,
-        limit=8
-    )
+    # --- Author-based recommendations (Google Books → OpenLibrary fallback) ---
+    unread_books = gb_fetch_books_by_author(author=author, read_titles=read_titles, limit=8)
+    if not unread_books:
+        unread_books = fetch_unread_books_by_author(author=author, read_titles=read_titles, limit=8)
 
     for book in unread_books:
-        unread_node = f"ol::{book['title']}::{book['author']}"
+        unread_node = f"rec::{book['title']}::{book['author']}"
 
         if not graph.has_node(unread_node):
             graph.add_node(
@@ -325,67 +328,65 @@ def book_graph_view(request, book_id):
                 reason=f"Same author as {author}",
             )
 
-        graph.add_edge(
-            book_id,
-            unread_node,
-            type="recommendation",
-            weight=0.6
-        )
+        graph.add_edge(book_id, unread_node, type="recommendation", weight=0.6)
 
-        # Zorg dat de auteursknoop in de (gekopieerde) graaf bestaat
         author_node = f"author::{author}"
         if not graph.has_node(author_node):
             graph.add_node(author_node, type="author", name=author)
 
         graph.add_edge(unread_node, author_node, weight=0.4)
 
-    # --- Aanbevelingen op basis van onderwerp ---
-    # Bereken voor elk onderwerp in de graaf een score op basis van de beoordelingen
-    # van gelezen boeken die dat onderwerp delen. Hogere beoordelingen = hogere score.
-    subject_scores = {}
+    # --- Genre-based recommendations ---
+    # Score each genre in the graph by the sum of ratings of books connected to it.
+    genre_scores = {}
     for node, data in graph.nodes(data=True):
         if data.get("type") != "subject":
             continue
-        subject_name = data.get("name", "")
+        genre_name = data.get("name", "")
         for neighbor in graph.neighbors(node):
             nb_data = graph.nodes.get(neighbor, {})
             if nb_data.get("type") == "book" and not nb_data.get("unread"):
-                subject_scores[subject_name] = (
-                    subject_scores.get(subject_name, 0) + (nb_data.get("rating") or 3)
+                genre_scores[genre_name] = (
+                    genre_scores.get(genre_name, 0) + (nb_data.get("rating") or 3)
                 )
 
-    # Haal onderwerpen op voor het geselecteerde boek (gecached na eerste aanroep)
+    # Fetch genres for the selected book (Google Books → OpenLibrary fallback)
     book_title = graph.nodes.get(book_id, {}).get("title", "")
-    work_data = fetch_work_data(book_title, author) if book_title else None
-    book_subjects = work_data.get("subjects", []) if work_data else []
+    book_genres = []
+    if book_title:
+        gb_data = gb_fetch_book_data(book_title, author)
+        if gb_data:
+            book_genres = gb_data.get("genres", [])
+        if not book_genres:
+            ol_data = fetch_work_data(book_title, author)
+            if ol_data:
+                book_genres = ol_data.get("subjects", [])
 
-    # Neem de top 3 onderwerpen gesorteerd op score in de persoonlijke leesgeschiedenis
-    ranked_subjects = sorted(
-        book_subjects,
-        key=lambda s: subject_scores.get(s, 0),
+    ranked_genres = sorted(
+        book_genres,
+        key=lambda g: genre_scores.get(g, 0),
         reverse=True,
     )[:3]
 
-    # Bijhouden welke titels al zijn toegevoegd (via auteur) om duplicaten te voorkomen
-    already_added = {
-        normalize_title(b["title"]).lower() for b in unread_books
-    }
+    already_added = {normalize_title(b["title"]).lower() for b in unread_books}
 
-    for subject in ranked_subjects:
-        subject_node = f"subject::{subject}"
-        if not graph.has_node(subject_node):
-            graph.add_node(subject_node, type="subject", name=subject)
+    for genre in ranked_genres:
+        genre_node = f"subject::{genre}"
+        if not graph.has_node(genre_node):
+            graph.add_node(genre_node, type="subject", name=genre)
 
-        # Verbind het geselecteerde boek met dit onderwerp als dat nog niet bestaat
-        if not graph.has_edge(book_id, subject_node):
-            graph.add_edge(book_id, subject_node, weight=0.8)
+        if not graph.has_edge(book_id, genre_node):
+            graph.add_edge(book_id, genre_node, weight=0.8)
 
-        for book in fetch_books_by_subject(subject, limit=5):
+        # Google Books genre search → OpenLibrary fallback
+        genre_books = fetch_books_by_genre(genre, limit=5) or fetch_books_by_subject(genre, limit=5)
+
+        for book in genre_books:
             norm = normalize_title(book["title"]).lower()
             if norm in read_titles or norm in already_added:
                 continue
 
-            unread_node = f"ol::{book['title']}::{book['author']}"
+            unread_node = f"rec::{book['title']}::{book['author']}"
             if not graph.has_node(unread_node):
                 graph.add_node(
                     unread_node,
@@ -394,15 +395,10 @@ def book_graph_view(request, book_id):
                     author=book["author"],
                     unread=True,
                     cover_url=book["cover_url"],
-                    reason=f"Shares subject: {subject}",
+                    reason=f"Shares genre: {genre}",
                 )
 
-            graph.add_edge(
-                unread_node,
-                subject_node,
-                type="recommendation",
-                weight=0.5,
-            )
+            graph.add_edge(unread_node, genre_node, type="recommendation", weight=0.5)
             already_added.add(norm)
 
     html = visualize_book_ego_graph_interactive(graph, book_id)

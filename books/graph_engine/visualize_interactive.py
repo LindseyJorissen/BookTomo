@@ -43,52 +43,68 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
     )
 
     click_node_info = {}
+    image_overlay_nodes = {}  # {nodeId: {color, size}} — used by afterDrawing overlay
 
     for node, data in ego.nodes(data=True):
         node_type = data.get("type")
-        tooltip = ""
 
         if node_type == "book":
             full_title = data.get("title", "")
             label = truncate(full_title)
-            tooltip = full_title  # Volledige titel zichtbaar bij hover
+            cover_url = data.get("cover_url")
 
             if data.get("unread"):
-                color = "#e6c79c"  # Warm goud voor ongelezen aanbevelingen
-                size = 18
+                border_color = "#e6c79c"
+                size = 25
                 click_node_info[node] = {
                     "title": full_title,
                     "author": data.get("author", ""),
                     "reason": data.get("reason", ""),
+                    "cover_url": cover_url or "",
                 }
             else:
-                # Geselecteerd boek is groter en donkerder dan de rest
-                color = "#8fa6a0" if node == book_node else "#b7c7c2"
-                size = 28 if node == book_node else 20
+                border_color = "#8fa6a0" if node == book_node else "#b7c7c2"
+                size = 35 if node == book_node else 28
+
+            if cover_url:
+                image_overlay_nodes[node] = {"color": border_color, "size": size}
+                net.add_node(
+                    node,
+                    label=label,
+                    title=full_title,
+                    shape="image",
+                    image=cover_url,
+                    color={"border": border_color, "background": border_color},
+                    borderWidth=4,
+                    size=size,
+                )
+            else:
+                net.add_node(
+                    node,
+                    label=label,
+                    title=full_title,
+                    color=border_color,
+                    size=size,
+                )
 
         elif node_type == "author":
             label = data.get("name", "")
-            tooltip = f"Auteur: {label}"
-            color = "#c4b7a6"
-            size = 26
+            net.add_node(
+                node,
+                label=label,
+                title=f"Author: {label}",
+                color="#c4b7a6",
+                size=26,
+            )
 
         else:
-            # Onderwerpknopen (of andere typen)
-            label = data.get("name")
-            color = {
-                "background": "#c4b7a6",
-                "border": "#c4b7a6",
-                "opacity": 0.6
-            }
-            size = 26
-
-        net.add_node(
-            node,
-            label=label,
-            title=tooltip,  # Tooltip bij hover
-            color=color,
-            size=size
-        )
+            net.add_node(
+                node,
+                label=data.get("name") or "",
+                title="",
+                color={"background": "#c4b7a6", "border": "#c4b7a6"},
+                size=26,
+            )
 
     for source, target, data in ego.edges(data=True):
         net.add_edge(
@@ -118,7 +134,6 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
         }
       },
       "nodes": {
-        "borderWidth": 0,
         "font": {
           "size": 13,
           "face": "Arial",
@@ -149,6 +164,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
     html = net.generate_html()
 
     node_info_json = json.dumps(click_node_info)
+    overlay_nodes_json = json.dumps(image_overlay_nodes)
 
     injected_script = f"""
     <div id="book-tooltip" style="
@@ -170,6 +186,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
     "></div>
     <script type="text/javascript">
       var nodeInfo = {node_info_json};
+      var overlayNodes = {overlay_nodes_json};
 
       var tooltip = document.getElementById("book-tooltip");
 
@@ -184,15 +201,41 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
           }});
         }}
 
+        // Draw a semi-transparent color overlay on image nodes.
+        // Skipped for whichever node is currently selected, revealing the full image.
+        network.on("afterDrawing", function(ctx) {{
+          var selected = network.getSelectedNodes();
+          for (var nid in overlayNodes) {{
+            if (selected.indexOf(nid) >= 0) continue;
+            var n = network.body.nodes[nid];
+            if (!n) continue;
+            var w = n.width  || overlayNodes[nid].size * 2;
+            var h = n.height || overlayNodes[nid].size * 3;
+            ctx.save();
+            ctx.globalAlpha = 0.45;
+            ctx.fillStyle = overlayNodes[nid].color;
+            ctx.fillRect(n.x - w / 2, n.y - h / 2, w, h);
+            ctx.restore();
+          }}
+        }});
+
         network.on("click", function(params) {{
           if (params.nodes.length > 0) {{
             var info = nodeInfo[params.nodes[0]];
             if (info) {{
+              var imgHtml = info.cover_url
+                ? "<img src='" + info.cover_url + "' style='width:60px; height:auto; border-radius:4px; flex-shrink:0; object-fit:cover;'/>"
+                : "";
               tooltip.innerHTML =
-                "<span style='font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#a39988;'>Why suggested?</span><br>" +
-                "<strong style='font-size:14px;'>" + info.title + "</strong><br>" +
-                "<span style='color:#7a7060;'>By " + info.author + "</span><br>" +
-                "<span style='display:block; margin-top:4px; font-style:italic;'>" + info.reason + "</span>";
+                "<span style='font-size:11px; text-transform:uppercase; letter-spacing:0.08em; color:#a39988;'>Why suggested?</span>" +
+                "<div style='display:flex; gap:10px; align-items:flex-start; margin-top:6px;'>" +
+                  imgHtml +
+                  "<div>" +
+                    "<strong style='font-size:14px;'>" + info.title + "</strong><br>" +
+                    "<span style='color:#7a7060;'>By " + info.author + "</span><br>" +
+                    "<span style='display:block; margin-top:4px; font-style:italic;'>" + info.reason + "</span>" +
+                  "</div>" +
+                "</div>";
               tooltip.style.display = "block";
               return;
             }}
