@@ -85,64 +85,6 @@ def fetch_cover_for_read_book(title, author):
     return None
 
 
-def search_by_author(author_name, limit=10):
-    """
-    Zoekt boeken op auteursnaam via OpenLibrary.
-    Resultaten worden 24 uur gecached.
-    Opmerking: deze functie heeft geen foutafhandeling — gebruikt voor intern gebruik.
-    """
-    cache_key = f"openlibrary_author_{author_name}_{limit}"
-
-    cached = cache.get(cache_key)
-    if cached:
-        return cached
-
-    url = f"{BASE_URL}/search.json"
-    params = {
-        "author": author_name,
-        "limit": limit,
-    }
-
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()
-
-    data = normalize_books(response.json())
-
-    cache.set(cache_key, data, timeout=60 * 60 * 24)
-
-    return data
-
-
-def normalize_books(openlibrary_json):
-    """
-    Zet een OpenLibrary zoekresultaat om naar een genormaliseerde lijst van boekdicts.
-    Filtert resultaten zonder titel of auteur.
-    """
-    books = []
-
-    for doc in openlibrary_json.get("docs", []):
-        title = doc.get("title")
-        authors = doc.get("author_name", [])
-        cover_id = doc.get("cover_i")
-
-        if not title or not authors:
-            continue
-
-        books.append({
-            "title": title,
-            "author": authors[0],
-            "cover_url": (
-                f"https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
-                if cover_id
-                else None
-            ),
-            "openlibrary_id": doc.get("key"),  # bijv. /works/OL123W
-            "first_publish_year": doc.get("first_publish_year"),
-        })
-
-    return books
-
-
 def fetch_work_data(title, author):
     """
     Haalt OpenLibrary-werkdata op voor één boek: onderwerpen, omslag en work-ID.
