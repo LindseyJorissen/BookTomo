@@ -391,13 +391,13 @@ function App() {
               </div>
             </div>
             {selectedBook ? (
-              <iframe
-                src={`http://localhost:8000/api/graph/${encodeURIComponent("book::" + selectedBook.id)}`}
-                width="100%"
-                height="85%"
-                style={{ border: "none", borderRadius: "16px" }}
-                title="Book Graph"
-              />
+              <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+                <iframe
+                  src={`http://localhost:8000/api/graph/${encodeURIComponent("book::" + selectedBook.id)}`}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none", borderRadius: "16px" }}
+                  title="Book Graph"
+                />
+              </div>
             ) : (
               <p>Select a book to see recommendations</p>
             )}
