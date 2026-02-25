@@ -26,15 +26,24 @@ def fetch_cover_for_read_book(title, author):
     """
     Haalt een omslagfoto op voor een gelezen boek via de OpenLibrary zoekAPI.
     Probeert eerst de zoekresultaten, dan de editie-API als fallback.
-    Slaat het resultaat 24 uur op in de cache (ook als er geen omslag gevonden wordt).
-    """
-    raw_key = f"read_cover::{title}::{author}"
-    cache_key = safe_cache_key(raw_key)
-    clean_title = normalize_title(title)
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
 
+    Checks CachedBook DB first — if a cover is already stored (from any source)
+    it is returned immediately without hitting the API. If the record shows OL
+    was already tried and found nothing, returns None without retrying (until stale).
+    """
+    from books.models import CachedBook
+
+    # DB check: return stored cover regardless of which API found it
+    try:
+        cached = CachedBook.objects.get(title=title, author=author)
+        if cached.cover_url:
+            return cached.cover_url
+        if cached.openlibrary_fetched and not cached.is_stale():
+            return None  # Already tried OL search, nothing found
+    except CachedBook.DoesNotExist:
+        pass
+
+    clean_title = normalize_title(title)
     url = f"{BASE_URL}/search.json"
     params = {
         "title": clean_title,
@@ -46,20 +55,22 @@ def fetch_cover_for_read_book(title, author):
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
     except Exception:
-        cache.set(cache_key, None, 86400)
+        obj, _ = CachedBook.objects.get_or_create(title=title, author=author)
+        obj.openlibrary_fetched = True
+        obj.save(update_fields=["openlibrary_fetched", "fetched_at"])
         return None
 
     docs = response.json().get("docs", [])
+    cover_url = None
 
     for doc in docs:
-        # Directe omslagafbeelding beschikbaar in zoekresultaat
+        # Direct cover ID in search result
         cover_id = doc.get("cover_i")
         if cover_id:
             cover_url = f"https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
-            cache.set(cache_key, cover_url, 86400)
-            return cover_url
+            break
 
-        # Fallback: haal omslag op via de editie-API
+        # Fallback: fetch cover via edition API
         edition_keys = doc.get("edition_key", [])
         if not edition_keys:
             continue
@@ -76,26 +87,44 @@ def fetch_cover_for_read_book(title, author):
             covers = edition_data.get("covers")
             if covers:
                 cover_url = f"https://covers.openlibrary.org/b/id/{covers[0]}-M.jpg"
-                cache.set(cache_key, cover_url, 86400)
-                return cover_url
+                break
         except Exception:
             continue
 
-    cache.set(cache_key, None, 86400)
-    return None
+    obj, _ = CachedBook.objects.get_or_create(title=title, author=author)
+    if not obj.cover_url and cover_url:
+        obj.cover_url = cover_url
+    obj.openlibrary_fetched = True
+    obj.save()
+    return cover_url
 
 
 def fetch_work_data(title, author):
     """
     Haalt OpenLibrary-werkdata op voor één boek: onderwerpen, omslag en work-ID.
     Gebruikt genormaliseerde titel (zonder reeks/ondertitel) voor betere trefkans.
-    Resultaat wordt 24 uur gecached.
+
+    Checks CachedBook DB first (30-day TTL). On a miss, calls the OL search API,
+    saves the result to the DB, and returns it. Merges with any existing record
+    (e.g. one already created by fetch_book_data) without overwriting a better cover.
     """
-    cache_key = f"openlibrary_work::{safe_cache_key(title + author)}"
+    from books.models import CachedBook
+
+    # DB cache check
+    try:
+        cached = CachedBook.objects.get(title=title, author=author)
+        if cached.openlibrary_fetched and not cached.is_stale():
+            if not cached.openlibrary_id:
+                return None  # Previously confirmed not found
+            return {
+                "openlibrary_id": cached.openlibrary_id,
+                "subjects": cached.subjects,
+                "cover_url": cached.cover_url or None,
+            }
+    except CachedBook.DoesNotExist:
+        pass
+
     clean_title = normalize_title(title)
-    cached = cache.get(cache_key)
-    if cached:
-        return cached
 
     try:
         response = requests.get(
@@ -109,13 +138,14 @@ def fetch_work_data(title, author):
 
     docs = response.json().get("docs", [])
     if not docs:
-        cache.set(cache_key, None, 86400)
+        obj, _ = CachedBook.objects.get_or_create(title=title, author=author)
+        obj.openlibrary_fetched = True
+        obj.save(update_fields=["openlibrary_fetched", "fetched_at"])
         return None
 
     doc = docs[0]
-    work_id = doc.get("key")
+    work_id = doc.get("key", "")
     cover_id = doc.get("cover_i")
-
     cover_url = (
         f"https://covers.openlibrary.org/b/id/{cover_id}-M.jpg"
         if cover_id
@@ -124,11 +154,19 @@ def fetch_work_data(title, author):
 
     data = {
         "openlibrary_id": work_id,
-        "subjects": doc.get("subject", [])[:8],  # Max 8 onderwerpen
+        "subjects": doc.get("subject", [])[:8],
         "cover_url": cover_url,
     }
 
-    cache.set(cache_key, data, 86400)
+    # Merge into existing record — don't overwrite a Google Books cover with an OL one
+    obj, _ = CachedBook.objects.get_or_create(title=title, author=author)
+    obj.openlibrary_id = work_id
+    obj.subjects = data["subjects"]
+    obj.openlibrary_fetched = True
+    if not obj.cover_url and cover_url:
+        obj.cover_url = cover_url
+    obj.save()
+
     return data
 
 

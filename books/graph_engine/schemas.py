@@ -14,3 +14,4 @@ class BookNode:
     subjects: List[str] = field(default_factory=list)  # Onderwerpen opgehaald via OpenLibrary
     cover_url: Optional[str] = None       # URL naar omslagfoto
     openlibrary_id: Optional[str] = None  # OpenLibrary work-sleutel, bijv. /works/OL123W
+    inventaire_uri: Optional[str] = None  # Inventaire/Wikidata URI, bijv. wd:Q43361

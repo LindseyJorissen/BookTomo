@@ -8,17 +8,16 @@ from django.views.decorators.csrf import csrf_exempt
 from books.graph_engine import state
 from books.graph_engine.extract import extract_books_from_df
 from books.graph_engine.visualize_interactive import visualize_book_ego_graph_interactive
-from books.googlebooks.client import (
-    fetch_book_data as gb_fetch_book_data,
-    fetch_books_by_genre,
-    fetch_books_by_author as gb_fetch_books_by_author,
-)
 from books.openlibrary.background import load_remaining_covers
 from books.openlibrary.client import (
     fetch_unread_books_by_author,
     fetch_books_by_subject,
     fetch_work_data,
     normalize_title,
+)
+from books.inventaire.client import (
+    fetch_books_by_subject as inventaire_fetch_by_subject,
+    fetch_books_by_author as inventaire_fetch_by_author,
 )
 
 
@@ -286,10 +285,10 @@ def upload_goodreads(request):
 def book_graph_view(request, book_id):
     """
     Genereert een interactieve ego-graaf rondom het geselecteerde boek.
-    
+
     Voegt twee soorten aanbevelingen toe aan de graaf:
-      1. Ongelezen boeken van dezelfde auteur
-      2. Boeken met gemeenschappelijke onderwerpen als het geselecteerde boek (via OpenLibrary)
+      1. Ongelezen boeken van dezelfde auteur (OL → Inventaire fallback)
+      2. Boeken met gemeenschappelijke onderwerpen (OL → Inventaire fallback)
     Return: een PyVis-gegenereerde HTML weergave
     """
     if state.GRAPH is None:
@@ -309,10 +308,10 @@ def book_graph_view(request, book_id):
     if not author:
         return HttpResponse("Author not found", status=400)
 
-    # --- Author-based recommendations (Google Books → OpenLibrary fallback) ---
-    unread_books = gb_fetch_books_by_author(author=author, read_titles=read_titles, limit=8)
+    # --- Author-based recommendations (OL → Inventaire fallback) ---
+    unread_books = fetch_unread_books_by_author(author=author, read_titles=read_titles, limit=8)
     if not unread_books:
-        unread_books = fetch_unread_books_by_author(author=author, read_titles=read_titles, limit=8)
+        unread_books = inventaire_fetch_by_author(author=author, read_titles=read_titles, limit=8)
 
     for book in unread_books:
         unread_node = f"rec::{book['title']}::{book['author']}"
@@ -350,17 +349,13 @@ def book_graph_view(request, book_id):
                     genre_scores.get(genre_name, 0) + (nb_data.get("rating") or 3)
                 )
 
-    # Fetch genres for the selected book (Google Books → OpenLibrary fallback)
+    # Fetch subjects for the selected book (OL only)
     book_title = graph.nodes.get(book_id, {}).get("title", "")
     book_genres = []
     if book_title:
-        gb_data = gb_fetch_book_data(book_title, author)
-        if gb_data:
-            book_genres = gb_data.get("genres", [])
-        if not book_genres:
-            ol_data = fetch_work_data(book_title, author)
-            if ol_data:
-                book_genres = ol_data.get("subjects", [])
+        ol_data = fetch_work_data(book_title, author)
+        if ol_data:
+            book_genres = ol_data.get("subjects", [])
 
     ranked_genres = sorted(
         book_genres,
@@ -378,8 +373,8 @@ def book_graph_view(request, book_id):
         if not graph.has_edge(book_id, genre_node):
             graph.add_edge(book_id, genre_node, weight=0.8)
 
-        # Google Books genre search → OpenLibrary fallback
-        genre_books = fetch_books_by_genre(genre, limit=5) or fetch_books_by_subject(genre, limit=5)
+        # OL subject search → Inventaire fallback
+        genre_books = fetch_books_by_subject(genre, limit=5) or inventaire_fetch_by_subject(genre, limit=5)
 
         for book in genre_books:
             norm = normalize_title(book["title"]).lower()
