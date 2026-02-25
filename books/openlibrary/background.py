@@ -1,21 +1,21 @@
 from books.openlibrary.client import fetch_cover_for_read_book, fetch_work_data
 from books.inventaire.client import fetch_cover as inventaire_fetch_cover
 from books.graph_engine import state
+from books.graph_engine.extract import _apply_ol_data
 
 
 def load_remaining_covers():
     """
-    Background task that fills in missing covers and subjects after upload.
+    Background task that fills in missing covers and metadata after upload.
     Started as a daemon thread from upload_goodreads so the initial response
     isn't slowed down.
 
     Strategy:
-      1. OpenLibrary work data — subjects + cover (DB-cached, 30-day TTL)
-      2. OpenLibrary cover search — cover only (DB-cached)
-      3. Inventaire — cover only (DB-cached, 30-day TTL)
+      1. OpenLibrary work data — subjects, awards, cover, description, metadata
+      2. OpenLibrary cover search — cover only (different endpoint, better fallback)
+      3. Inventaire — cover only as last resort
 
-    All results are persisted to CachedBook so each book is never fetched
-    more than once per 30-day period.
+    All results are DB-cached so each book is never re-fetched within 30 days.
     """
     for book in state.BOOK_NODES:
         needs_cover = not book.cover_url
@@ -24,27 +24,20 @@ def load_remaining_covers():
         if not needs_cover and not needs_subjects:
             continue
 
-        # 1. OpenLibrary: subjects + cover in one call
-        if needs_subjects or needs_cover:
-            ol_data = fetch_work_data(book.title, book.author)
-            if ol_data:
-                if not book.cover_url and ol_data.get("cover_url"):
-                    book.cover_url = ol_data["cover_url"]
-                if not book.subjects and ol_data.get("subjects"):
-                    book.subjects = ol_data["subjects"]
-                if not book.openlibrary_id and ol_data.get("openlibrary_id"):
-                    book.openlibrary_id = ol_data["openlibrary_id"]
-                needs_cover = not book.cover_url
-                needs_subjects = not book.subjects
+        # 1. OpenLibrary full metadata
+        ol_data = fetch_work_data(book.title, book.author)
+        _apply_ol_data(book, ol_data)
 
-        # 2. OpenLibrary cover search (different endpoint — searches by title+author)
+        needs_cover = not book.cover_url
+
+        # 2. OL cover search fallback
         if needs_cover:
             cover = fetch_cover_for_read_book(book.title, book.author)
             if cover:
                 book.cover_url = cover
                 needs_cover = False
 
-        # 3. Inventaire fallback for cover
+        # 3. Inventaire cover fallback
         if needs_cover:
             cover = inventaire_fetch_cover(book.title, book.author)
             if cover:

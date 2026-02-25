@@ -13,7 +13,8 @@ function App() {
   const [activeView, setActiveView] = useState("stats");   // Actief tabblad: "stats" of "suggestions"
   const [timeView, setTimeView] = useState("overall");     // Tijdsbereik: "overall" of "this_year"
   const [selectedBook, setSelectedBook] = useState(null);  // Huidig geselecteerd boek voor de graaf
-  const [isUploading, setIsUploading] = useState(false);   // Of de CSV momenteel wordt verwerkt (voor laadbalk)
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ phase: "idle", current: 0, total: 0 });
 
   // Paginastatistieken voor het huidige tijdsbereik
   const bookLengths = stats?.book_lengths?.[timeView];
@@ -107,6 +108,44 @@ useEffect(() => {
   return () => clearInterval(interval); // Opruimen bij unmount of nieuwe stats
 }, [stats]);
 
+// Poll for real upload progress while the CSV is being processed
+useEffect(() => {
+  if (!isUploading) return;
+  setUploadProgress({ phase: "parsing", current: 0, total: 0 });
+
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch("http://127.0.0.1:8000/api/upload_progress/");
+      const data = await res.json();
+      setUploadProgress(data);
+    } catch (_) {}
+  }, 400);
+
+  return () => clearInterval(interval);
+}, [isUploading]);
+
+// Convert progress state to a 0-100 percentage for the bar
+const getProgressPct = () => {
+  const { phase, current, total } = uploadProgress;
+  if (phase === "parsing")  return 2;
+  if (phase === "fetching") return total > 0 ? Math.round(2 + (current / total) * 88) : 2;
+  if (phase === "building") return 92;
+  if (phase === "done")     return 100;
+  return 0;
+};
+
+// Human-readable label shown above the progress bar
+const getProgressLabel = () => {
+  const { phase, current, total } = uploadProgress;
+  if (phase === "parsing")  return "Reading your library…";
+  if (phase === "fetching") return total > 0
+    ? `Fetching book data… (${current} of ${total})`
+    : "Fetching book data…";
+  if (phase === "building") return "Building your reading graph…";
+  if (phase === "done")     return "Almost there…";
+  return "Crunching your books…";
+};
+
 // Zet de applicatie terug naar de begintoestand
 const handleReset = () => {
   setStats(null);
@@ -124,12 +163,11 @@ const handleReset = () => {
     {isUploading && (
       <div className="loading-overlay">
         <div className="loading-card neu-card">
-          <p>Crunching your books…</p>
+          <p>{getProgressLabel()}</p>
           <div className="loading-bar">
-          <div className="loading-bar-fill"/>
+            <div className="loading-bar-fill" style={{ width: `${getProgressPct()}%` }} />
           </div>
-
-          <p style={{ fontSize: "0.9rem", opacity: 0.7, marginTop: "o.5rem"}}>
+          <p style={{ fontSize: "0.9rem", opacity: 0.7, marginTop: "0.5rem" }}>
             This can take a moment for large libraries
           </p>
         </div>

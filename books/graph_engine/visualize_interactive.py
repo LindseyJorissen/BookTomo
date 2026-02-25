@@ -97,7 +97,30 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                 size=26,
             )
 
+        elif node_type == "award":
+            label = data.get("name", "")
+            net.add_node(
+                node,
+                label=label,
+                title=f"Award: {label}",
+                color={"background": "#d4af7a", "border": "#b8922e"},
+                size=24,
+                shape="diamond",
+            )
+
+        elif node_type == "era":
+            label = data.get("name", "")
+            net.add_node(
+                node,
+                label=label,
+                title=f"Era: {label}",
+                color={"background": "#a8b8c8", "border": "#6a8ca8"},
+                size=24,
+                shape="triangle",
+            )
+
         else:
+            # subject nodes and anything else
             net.add_node(
                 node,
                 label=data.get("name") or "",

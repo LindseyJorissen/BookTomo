@@ -12,6 +12,8 @@ from books.openlibrary.background import load_remaining_covers
 from books.openlibrary.client import (
     fetch_unread_books_by_author,
     fetch_books_by_subject,
+    fetch_books_by_award,
+    fetch_books_by_era,
     fetch_work_data,
     normalize_title,
 )
@@ -71,10 +73,13 @@ def upload_goodreads(request):
         read_df = df[df["Exclusive Shelf"] == "read"]
 
     # Zet CSV-data om naar 'BookNodes' en genereer de auteur-graaf
+    state.UPLOAD_PROGRESS = {"phase": "parsing", "current": 0, "total": 0}
     read_books = extract_books_from_df(read_df)
     state.BOOK_NODES = read_books
+    state.UPLOAD_PROGRESS["phase"] = "building"
     from books.graph_engine.builder import build_author_graph
     state.GRAPH = build_author_graph(read_books)
+    state.UPLOAD_PROGRESS["phase"] = "done"
 
     # Datumkolommen aanmaken voor statistieken
     df["Date Read"] = pd.to_datetime(df.get("Date Read"), errors="coerce")
@@ -349,13 +354,18 @@ def book_graph_view(request, book_id):
                     genre_scores.get(genre_name, 0) + (nb_data.get("rating") or 3)
                 )
 
-    # Fetch subjects for the selected book (OL only)
+    # Fetch full OL data for the selected book (subjects, awards, first_publish_year)
     book_title = graph.nodes.get(book_id, {}).get("title", "")
     book_genres = []
+    book_award_slugs = []
+    book_first_publish_year = None
+
     if book_title:
         ol_data = fetch_work_data(book_title, author)
         if ol_data:
             book_genres = ol_data.get("subjects", [])
+            book_award_slugs = ol_data.get("award_slugs", [])
+            book_first_publish_year = ol_data.get("first_publish_year")
 
     ranked_genres = sorted(
         book_genres,
@@ -365,6 +375,7 @@ def book_graph_view(request, book_id):
 
     already_added = {normalize_title(b["title"]).lower() for b in unread_books}
 
+    # --- Genre/subject-based recommendations ---
     for genre in ranked_genres:
         genre_node = f"subject::{genre}"
         if not graph.has_node(genre_node):
@@ -396,8 +407,84 @@ def book_graph_view(request, book_id):
             graph.add_edge(unread_node, genre_node, type="recommendation", weight=0.5)
             already_added.add(norm)
 
+    # --- Award-based recommendations ---
+    # Show up to 2 awards to keep the graph readable
+    _AWARD_DISPLAY = {
+        "hugo_award": "Hugo Award",
+        "nebula_award": "Nebula Award",
+        "pulitzer_prize": "Pulitzer Prize",
+        "national_book_award": "National Book Award",
+        "booker_prize": "Booker Prize",
+        "world_fantasy_award": "World Fantasy Award",
+        "locus_award": "Locus Award",
+        "edgar_allan_poe_award": "Edgar Award",
+    }
+    for slug in book_award_slugs[:2]:
+        award_name = _AWARD_DISPLAY.get(slug) or slug.replace("_", " ").title()
+        award_node = f"award::{slug}"
+        if not graph.has_node(award_node):
+            graph.add_node(award_node, type="award", name=award_name)
+        if not graph.has_edge(book_id, award_node):
+            graph.add_edge(book_id, award_node, weight=0.7)
+
+        award_books = fetch_books_by_award(slug, limit=5)
+        for book in award_books:
+            norm = normalize_title(book["title"]).lower()
+            if norm in read_titles or norm in already_added:
+                continue
+
+            unread_node = f"rec::{book['title']}::{book['author']}"
+            if not graph.has_node(unread_node):
+                graph.add_node(
+                    unread_node,
+                    type="book",
+                    title=book["title"],
+                    author=book["author"],
+                    unread=True,
+                    cover_url=book["cover_url"],
+                    reason=f"Also won the {award_name}",
+                )
+            graph.add_edge(unread_node, award_node, type="recommendation", weight=0.7)
+            already_added.add(norm)
+
+    # --- Era-based recommendations ---
+    if book_first_publish_year:
+        decade_start = (book_first_publish_year // 10) * 10
+        decade_label = f"{decade_start}s"
+        era_node = f"era::{decade_start}"
+        if not graph.has_node(era_node):
+            graph.add_node(era_node, type="era", name=decade_label)
+        if not graph.has_edge(book_id, era_node):
+            graph.add_edge(book_id, era_node, weight=0.6)
+
+        primary_genre = ranked_genres[0] if ranked_genres else None
+        era_books = fetch_books_by_era(decade_start, primary_genre, limit=5)
+        for book in era_books:
+            norm = normalize_title(book["title"]).lower()
+            if norm in read_titles or norm in already_added:
+                continue
+
+            unread_node = f"rec::{book['title']}::{book['author']}"
+            if not graph.has_node(unread_node):
+                graph.add_node(
+                    unread_node,
+                    type="book",
+                    title=book["title"],
+                    author=book["author"],
+                    unread=True,
+                    cover_url=book["cover_url"],
+                    reason=f"Popular from the {decade_label}",
+                )
+            graph.add_edge(unread_node, era_node, type="recommendation", weight=0.5)
+            already_added.add(norm)
+
     html = visualize_book_ego_graph_interactive(graph, book_id)
     return HttpResponse(html)
+
+
+def upload_progress_view(request):
+    """Returns the current upload progress so the frontend can drive a real progress bar."""
+    return JsonResponse(state.UPLOAD_PROGRESS)
 
 
 def book_covers_view(request):

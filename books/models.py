@@ -19,20 +19,27 @@ class CachedBook(models.Model):
     # --- Cover ---
     cover_url = models.URLField(max_length=1000, blank=True)
 
-    # --- Generic metadata (populated by OpenLibrary) ---
-    subjects = models.JSONField(default=list)           # OL subject tags / genres
+    # --- Metadata (populated by OpenLibrary) ---
+    subjects = models.JSONField(default=list)       # Clean subject tags (award:* filtered out)
+    award_slugs = models.JSONField(default=list)    # OL award slugs e.g. ["hugo_award", "nebula_award"]
     description = models.TextField(blank=True)
     page_count = models.IntegerField(null=True, blank=True)
     publisher = models.CharField(max_length=300, blank=True)
-    published_date = models.CharField(max_length=20, blank=True)  # e.g. "2001" or "2001-03-15"
+    published_date = models.CharField(max_length=20, blank=True)
+    first_publish_year = models.IntegerField(null=True, blank=True)
     isbn_13 = models.CharField(max_length=13, blank=True)
     isbn_10 = models.CharField(max_length=10, blank=True)
     language = models.CharField(max_length=10, blank=True)
 
+    # --- Popularity / ratings (from OL) ---
+    ol_ratings_average = models.FloatField(null=True, blank=True)
+    ol_ratings_count = models.IntegerField(null=True, blank=True)
+    want_to_read_count = models.IntegerField(null=True, blank=True)
+
     # --- Cache tracking ---
     openlibrary_fetched = models.BooleanField(default=False)
     inventaire_fetched = models.BooleanField(default=False)
-    fetched_at = models.DateTimeField(auto_now=True)    # updated on every save
+    fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = [("title", "author")]

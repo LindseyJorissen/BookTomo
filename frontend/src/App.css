@@ -298,27 +298,10 @@ min-height: 700px;
 
 .loading-bar-fill {
   height: 100%;
-  width: 40%;
-  background: linear-gradient(
-    90deg,
-    #8fa6a0,
-    #b7c7c2,
-    #8fa6a0
-  );
-  animation: loading-slide 1.2s ease-in-out infinite;
+  width: 0%;
+  background: linear-gradient(90deg, #8fa6a0, #b7c7c2);
   border-radius: 999px;
-}
-
-@keyframes loading-slide {
-  0% {
-    transform: translateX(-100%);
-  }
-  50% {
-    transform: translateX(60%);
-  }
-  100% {
-    transform: translateX(200%);
-  }
+  transition: width 0.4s ease;
 }
 .graph-legend {
   display: flex;
