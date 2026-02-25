@@ -11,9 +11,98 @@ body {
 }
 
 h1 {
-  margin-left: 0.5rem;
+  margin: 0;
   font-size: xx-large;
   color: #4c483c;
+}
+
+/* ── Header ── */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+/* ── Kebab menu ── */
+.menu-wrapper {
+  position: relative;
+}
+
+.menu-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: #ebe8dd;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4c483c;
+  padding-bottom: 6px; /* vertically centres the ⋮ glyph */
+  flex-shrink: 0;
+}
+
+.menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  min-width: 210px;
+  padding: 0.4rem;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.7rem 1rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 16px;
+  font-size: 0.95rem;
+  color: #4c483c;
+  transition: background 0.15s;
+}
+
+.menu-item:hover {
+  background: #e0dcd4;
+}
+
+/* ── Empty / landing state ── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 5rem 2rem;
+  gap: 1.5rem;
+}
+
+.empty-state p {
+  font-size: 1.1rem;
+  color: #4c483c;
+  margin: 0;
+  text-align: center;
+}
+
+.upload-cta {
+  padding: 0.85rem 2.5rem;
+  background: #ebe8dd;
+  border: none;
+  border-radius: 30px;
+  font-size: 1rem;
+  cursor: pointer;
+  color: #4c483c;
+  display: inline-block;
+  user-select: none;
 }
 
 p {
@@ -218,9 +307,8 @@ p {
 }
 
 .top-tabs {
-display: flex;
-gap: 1rem;
-margin: 2rem 0 0 0;
+  display: flex;
+  gap: 1rem;
 }
 
 iframe {
