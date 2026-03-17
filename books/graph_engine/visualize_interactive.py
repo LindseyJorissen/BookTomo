@@ -56,8 +56,8 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
             rating = data.get("rating")
 
             if data.get("unread"):
-                border_color = "#e6c79c"
-                size = 25
+                border_color = "#e8a020"
+                size = 44
                 click_node_info[node] = {
                     "title": full_title,
                     "author": data.get("author", ""),
@@ -68,7 +68,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                 }
             else:
                 border_color = "#ebe8dd" if node == focus_book_id else "#b7c7c2"
-                size = 35 if node == focus_book_id else 28
+                size = 30 if node == focus_book_id else 22
 
             hover_node_info[node] = {
                 "title": full_title,
@@ -78,7 +78,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                 "unread": bool(data.get("unread")),
             }
 
-            if cover_url:
+            if cover_url and data.get("unread"):
                 image_overlay_nodes[node] = {"color": border_color, "size": size}
                 net.add_node(
                     node,
@@ -87,7 +87,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                     shape="image",
                     image=cover_url,
                     color={"border": border_color, "background": border_color},
-                    borderWidth=4,
+                    borderWidth=6,
                     size=size,
                 )
             else:
@@ -95,7 +95,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
 
         elif node_type == "author":
             label = data.get("name", "")
-            net.add_node(node, label=label, title="", color="#c4b7a6", size=26)
+            net.add_node(node, label=label, title="", color="#c4b7a6", size=16)
 
         elif node_type == "award":
             label = data.get("name", "")
@@ -104,7 +104,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                 label=label,
                 title="",
                 color={"background": "#d4af7a", "border": "#b8922e"},
-                size=24,
+                size=16,
                 shape="diamond",
             )
 
@@ -115,7 +115,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                 label=label,
                 title="",
                 color={"background": "#a8b8c8", "border": "#6a8ca8"},
-                size=24,
+                size=16,
                 shape="triangle",
             )
 
@@ -125,7 +125,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                 label=data.get("name") or "",
                 title="",
                 color={"background": "#c4b7a6", "border": "#c4b7a6"},
-                size=26,
+                size=14,
             )
 
     for source, target, data in ego.edges(data=True):
@@ -229,16 +229,21 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
         networkDiv.style.opacity = "1";
 
         // Focus selected book after physics stabilises so the node is in its final position
-        network.once("stabilizationIterationsDone", function() {{
+        var _focusDone = false;
+        function _doFocus() {{
+          if (_focusDone) return;
+          _focusDone = true;
           if (network.body.data.nodes.get("{focus_book_id}")) {{
             network.focus("{focus_book_id}", {{
-              scale: 1.2,
+              scale: 0.7,
               animation: {{ duration: 600, easingFunction: "easeInOutQuad" }}
             }});
           }}
-        }});
+        }}
+        network.once("stabilized", _doFocus);
+        setTimeout(_doFocus, 4000); // fallback if stabilized never fires
 
-        // ── Colour overlay on image nodes ──────────────────────────────────
+        // ── Glowing gold border around recommendation image nodes ──────────
         network.on("afterDrawing", function(ctx) {{
           var selected = network.getSelectedNodes();
           for (var nid in overlayNodes) {{
@@ -248,9 +253,11 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
             var w = n.width  || overlayNodes[nid].size * 2;
             var h = n.height || overlayNodes[nid].size * 3;
             ctx.save();
-            ctx.globalAlpha = 0.45;
-            ctx.fillStyle = overlayNodes[nid].color;
-            ctx.fillRect(n.x - w / 2, n.y - h / 2, w, h);
+            ctx.shadowColor = overlayNodes[nid].color;
+            ctx.shadowBlur = 18;
+            ctx.strokeStyle = overlayNodes[nid].color;
+            ctx.lineWidth = 3;
+            ctx.strokeRect(n.x - w / 2, n.y - h / 2, w, h);
             ctx.restore();
           }}
         }});

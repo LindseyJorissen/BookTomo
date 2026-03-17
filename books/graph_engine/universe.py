@@ -416,6 +416,7 @@ def render_universe_graph(clusters: list, graph) -> str:
             representativeBook: info.representative_book,
             clusterName: info.name,
             topGenres: info.top_genres,
+            bookNodes: info.book_nodes,
           }}, "*");
         }});
       }}, 300);

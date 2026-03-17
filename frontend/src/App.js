@@ -108,12 +108,10 @@ function App() {
         setGraphMode("cluster");
         setGraphLoading(true);
       } else if (e.data.type === "READ_BOOK_CLICK") {
-        // Book clicked in cluster or full network → open its ego-graph
+        // Book clicked in cluster or full network → open detail panel only
         const book = stats.books.find(b => b.id === e.data.bookId);
         if (book) {
           setSelectedBook(book);
-          setGraphMode("book");
-          setGraphLoading(true);
           setPanelMode("read");
           setShowDetailPanel(true);
           setDetailLoading(true);
@@ -609,8 +607,8 @@ function App() {
               {graphMode === "book" && (
                 <div className="graph-legend neu-card">
                   <div className="legend-item"><span className="legend-dot read"></span><span>Read book</span></div>
-                  <div className="legend-item"><span className="legend-dot unread"></span><span>Recommendation</span></div>
-                  <div className="legend-item"><span className="legend-dot author"></span><span>Author</span></div>
+                  <div className="legend-item"><span className="legend-cover"></span><span>Recommendation</span></div>
+                  <div className="legend-item"><span className="legend-dot author"></span><span>Author / genre</span></div>
                 </div>
               )}
 
@@ -686,7 +684,7 @@ function App() {
               <>
                 {bookDetail.rating && (
                   <div className="detail-row">
-                    <span className="detail-label">Rating</span>
+                    <span className="detail-label">Your rating</span>
                     <StarRating rating={bookDetail.rating} />
                   </div>
                 )}

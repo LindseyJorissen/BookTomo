@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from books.graph_engine import state
 from books.graph_engine.extract import extract_books_from_df
+from books.graph_engine.schemas import BookNode
 from books.graph_engine.universe import detect_communities, render_universe_graph, render_cluster_graph
 from books.graph_engine.visualize_interactive import visualize_book_ego_graph_interactive
 from books.openlibrary.background import load_remaining_covers
@@ -165,6 +166,21 @@ def upload_goodreads(request):
     state.UNIVERSE_VERSION = 0
     read_books = extract_books_from_df(read_df)
     state.BOOK_NODES = read_books
+
+    # Extract to-read / currently-reading as lightweight BookNodes (metadata fetched in background)
+    wtr_books = []
+    if "Exclusive Shelf" in df.columns:
+        wtr_df = df[df["Exclusive Shelf"].isin(["to-read", "currently-reading"])]
+        for _, wtr_row in wtr_df.iterrows():
+            wt = wtr_row.get("Title")
+            wa = wtr_row.get("Author")
+            if not wt or not wa:
+                continue
+            raw_gid = wtr_row.get("Book Id")
+            wgid = str(int(raw_gid)) if raw_gid and str(raw_gid) not in ("", "nan") else None
+            wtr_books.append(BookNode(id=f"{wt}::{wa}", title=wt, author=wa, goodreads_id=wgid))
+    state.WANT_TO_READ_NODES = wtr_books
+
     state.UPLOAD_PROGRESS["phase"] = "building"
     from books.graph_engine.builder import build_author_graph, build_genre_graph
     state.GRAPH = build_author_graph(read_books)
@@ -379,7 +395,42 @@ def book_graph_view(request, book_id):
 
     ranked_genres = sorted(book_genres, key=lambda g: genre_scores.get(g, 0), reverse=True)[:3]
 
-    # --- Author-based recommendations ---
+    already_added: set = set()
+
+    # --- Want-to-read: author matches (from user's own Goodreads to-read list) ---
+    if _SIMILARITY_SCORES["author"] >= min_similarity:
+        for wtr in state.WANT_TO_READ_NODES:
+            if wtr.author.lower() != author.lower():
+                continue
+            norm = normalize_title(wtr.title).lower()
+            if norm in read_titles or norm in already_added:
+                continue
+            if hide_started_series and any(_detect_series(rt, wtr.title) for rt in all_read_titles):
+                continue
+            unread_node = f"rec::{wtr.title}::{wtr.author}"
+            if not graph.has_node(unread_node):
+                signals = [{"label": "Author", "value": author}, {"label": "Source", "value": "Your to-read list"}]
+                if ranked_genres:
+                    signals.append({"label": "Genres", "value": ", ".join(ranked_genres[:2])})
+                graph.add_node(
+                    unread_node,
+                    type="book",
+                    title=wtr.title,
+                    author=wtr.author,
+                    unread=True,
+                    cover_url=wtr.cover_url or "",
+                    reason=f"Same author as {author}",
+                    signals=signals,
+                    similarity_score=_SIMILARITY_SCORES["author"],
+                )
+            graph.add_edge(book_id, unread_node, type="recommendation", weight=0.6)
+            author_node = f"author::{author}"
+            if not graph.has_node(author_node):
+                graph.add_node(author_node, type="author", name=author)
+            graph.add_edge(unread_node, author_node, weight=0.4)
+            already_added.add(norm)
+
+    # --- Author-based recommendations (API fallback) ---
     unread_books = fetch_unread_books_by_author(author=author, read_titles=read_titles, limit=8)
     if not unread_books:
         unread_books = inventaire_fetch_by_author(author=author, read_titles=read_titles, limit=8)
@@ -413,7 +464,43 @@ def book_graph_view(request, book_id):
             graph.add_node(author_node, type="author", name=author)
         graph.add_edge(unread_node, author_node, weight=0.4)
 
-    already_added = {normalize_title(b["title"]).lower() for b in unread_books}
+    already_added |= {normalize_title(b["title"]).lower() for b in unread_books}
+
+    # --- Want-to-read: genre matches (only once background has enriched subjects) ---
+    if _SIMILARITY_SCORES["genre"] >= min_similarity:
+        for wtr in state.WANT_TO_READ_NODES:
+            norm = normalize_title(wtr.title).lower()
+            if norm in read_titles or norm in already_added or not wtr.subjects:
+                continue
+            shared = [g for g in ranked_genres if g in wtr.subjects]
+            if not shared:
+                continue
+            if hide_started_series and any(_detect_series(rt, wtr.title) for rt in all_read_titles):
+                continue
+            match_genre = shared[0]
+            genre_node = f"subject::{match_genre}"
+            if not graph.has_node(genre_node):
+                graph.add_node(genre_node, type="subject", name=match_genre)
+            if not graph.has_edge(book_id, genre_node):
+                graph.add_edge(book_id, genre_node, weight=0.8)
+            unread_node = f"rec::{wtr.title}::{wtr.author}"
+            if not graph.has_node(unread_node):
+                graph.add_node(
+                    unread_node,
+                    type="book",
+                    title=wtr.title,
+                    author=wtr.author,
+                    unread=True,
+                    cover_url=wtr.cover_url or "",
+                    reason=f"Shares genre: {match_genre}",
+                    signals=[
+                        {"label": "Genre", "value": match_genre},
+                        {"label": "Source", "value": "Your to-read list"},
+                    ],
+                    similarity_score=_SIMILARITY_SCORES["genre"],
+                )
+                graph.add_edge(unread_node, genre_node, type="recommendation", weight=0.5)
+            already_added.add(norm)
 
     # --- Genre-based recommendations ---
     for genre in ranked_genres:

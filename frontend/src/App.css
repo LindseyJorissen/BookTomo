@@ -618,6 +618,15 @@ iframe {
 .legend-dot.unread { background: #e0b57a; }
 .legend-dot.author { background: #c4b7a6; }
 
+.legend-cover {
+  width: 10px;
+  height: 14px;
+  border-radius: 2px;
+  border: 2.5px solid #e8a020;
+  background: #f5f2eb;
+  flex-shrink: 0;
+}
+
 /* ── Graph controls ── */
 .graph-controls {
   display: flex;

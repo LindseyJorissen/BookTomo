@@ -71,4 +71,19 @@ def load_remaining_covers():
     except Exception:
         pass
 
+    # Mark done so the frontend banner clears before WTR enrichment begins.
     state.BACKGROUND_PROGRESS["done"] = True
+
+    # Enrich want-to-read books (subjects + covers) so genre matching works.
+    # Runs silently after the banner clears; DB-cached so instant on repeat uploads.
+    for book in state.WANT_TO_READ_NODES:
+        try:
+            if not book.subjects or not book.cover_url:
+                ol_data = fetch_work_data(book.title, book.author, is_read=False)
+                _apply_ol_data(book, ol_data)
+                if not book.cover_url:
+                    cover = fetch_cover_for_read_book(book.title, book.author, is_read=False)
+                    if cover:
+                        book.cover_url = cover
+        except Exception:
+            pass

@@ -2,9 +2,10 @@
 # Note: with multiple concurrent users, they would overwrite each other's data.
 # Intended for single-user / personal use only.
 
-BOOK_NODES = []       # List of BookNode objects after CSV upload
-GRAPH = None          # NetworkX graph built from BOOK_NODES
-COMMUNITIES = None    # Cached community clusters (list of dicts from universe.py)
+BOOK_NODES = []            # List of BookNode objects after CSV upload
+WANT_TO_READ_NODES = []   # List of BookNode objects from user's to-read / currently-reading shelf
+GRAPH = None               # NetworkX graph built from BOOK_NODES
+COMMUNITIES = None         # Cached community clusters (list of dicts from universe.py)
 
 # Progress tracking for the upload flow.
 # phase: "idle" | "parsing" | "fetching" | "building" | "done"
