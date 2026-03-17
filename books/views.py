@@ -8,7 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from books.graph_engine import state
 from books.graph_engine.extract import extract_books_from_df
-from books.graph_engine.universe import detect_communities, render_universe_graph
+from books.graph_engine.universe import detect_communities, render_universe_graph, render_cluster_graph
 from books.graph_engine.visualize_interactive import visualize_book_ego_graph_interactive
 from books.openlibrary.background import load_remaining_covers
 from books.openlibrary.client import (
@@ -291,6 +291,41 @@ def universe_graph_view(request):
         """)
 
     return HttpResponse(render_universe_graph(clusters, state.GRAPH))
+
+
+def cluster_graph_view(request):
+    """Render a PyVis graph of books within a single taste cluster.
+
+    Accepts a GET param `nodes` — a JSON-encoded list of book node ID strings
+    (e.g. ["book::Title::Author", ...]).
+    """
+    if state.GRAPH is None:
+        return HttpResponse("Graph not built yet", status=400)
+
+    import json as _json
+    raw = request.GET.get("nodes", "[]")
+    try:
+        book_nodes = _json.loads(raw)
+    except Exception:
+        return HttpResponse("Invalid nodes param", status=400)
+
+    if not book_nodes:
+        return HttpResponse("No book nodes provided", status=400)
+
+    cover_map = {f"book::{b.id}": b.cover_url for b in state.BOOK_NODES if b.cover_url}
+    html = render_cluster_graph(book_nodes, state.GRAPH, cover_map=cover_map)
+    return HttpResponse(html)
+
+
+def full_network_view(request):
+    """Render a PyVis graph of all read books and their connections."""
+    if state.GRAPH is None:
+        return HttpResponse("Graph not built yet", status=400)
+
+    from books.graph_engine.full_network import render_full_network
+    cover_map = {f"book::{b.id}": b.cover_url for b in state.BOOK_NODES if b.cover_url}
+    html = render_full_network(state.GRAPH, communities=state.COMMUNITIES, cover_map=cover_map)
+    return HttpResponse(html)
 
 
 def book_graph_view(request, book_id):

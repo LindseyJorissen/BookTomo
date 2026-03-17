@@ -287,6 +287,7 @@ def render_universe_graph(clusters: list, graph) -> str:
             "book_count": count,
             "representative_book": cluster["representative_book"],
             "top_genres": cluster["top_genres"],
+            "book_nodes": cluster["book_nodes"],
         }
         tooltip_html_map[cid] = cluster["tooltip_html"]
 
@@ -420,6 +421,222 @@ def render_universe_graph(clusters: list, graph) -> str:
       }}, 300);
     </script>
     {_LEGEND_HTML}
+    """
+
+    html = html.replace("</body>", injected + "\n</body>")
+    return html
+
+
+def render_cluster_graph(book_node_ids: list, graph, cover_map: dict = None) -> str:
+    """Render a PyVis graph of books within a single taste cluster.
+
+    Shows books connected via shared subject nodes (subjects linked to 2+ books
+    in the cluster). Clicking a book sends a READ_BOOK_CLICK postMessage to the
+    React parent so it can switch to that book's ego-graph.
+    """
+    from pyvis.network import Network
+    from books.graph_engine.visualize_interactive import truncate
+
+    cover_map = cover_map or {}
+
+    # Subjects shared by 2+ cluster books — used as connector nodes
+    subject_to_book_count: dict = {}
+    for node_id in book_node_ids:
+        if node_id not in graph:
+            continue
+        for nb in graph.neighbors(node_id):
+            if graph.nodes[nb].get("type") == "subject":
+                subject_to_book_count[nb] = subject_to_book_count.get(nb, 0) + 1
+
+    shared_subjects = {s for s, c in subject_to_book_count.items() if c >= 2}
+    if not shared_subjects:
+        shared_subjects = set(subject_to_book_count.keys())
+
+    net = Network(
+        height="670px",
+        width="100%",
+        bgcolor="#ebe8dd",
+        font_color="#4c483c",
+        notebook=False,
+        cdn_resources="in_line",
+    )
+
+    hover_node_info: dict = {}
+    image_overlay_nodes: dict = {}
+    click_node_info: dict = {}
+
+    valid_book_nodes = [n for n in book_node_ids if n in graph]
+    for node_id in valid_book_nodes:
+        data = graph.nodes[node_id]
+        full_title = data.get("title", "")
+        label = truncate(full_title)
+        cover_url = cover_map.get(node_id) or data.get("cover_url")
+        rating = data.get("rating")
+        color = "#b7c7c2"
+        size = 30
+
+        hover_node_info[node_id] = {
+            "title": full_title,
+            "author": data.get("author", ""),
+            "rating": rating,
+            "cover_url": cover_url or "",
+        }
+        click_node_info[node_id] = {"bookId": node_id.replace("book::", "")}
+
+        if cover_url:
+            image_overlay_nodes[node_id] = {"color": color, "size": size}
+            net.add_node(
+                node_id,
+                label=label,
+                title="",
+                shape="image",
+                image=cover_url,
+                color={"border": color, "background": color},
+                borderWidth=4,
+                size=size,
+            )
+        else:
+            net.add_node(node_id, label=label, title="", color=color, size=size)
+
+    for subject_id in shared_subjects:
+        if subject_id not in graph:
+            continue
+        name = graph.nodes[subject_id].get("name", subject_id.replace("subject::", ""))
+        net.add_node(
+            subject_id,
+            label=name,
+            title="",
+            color={"background": "#c4b7a6", "border": "#c4b7a6"},
+            size=14,
+        )
+
+    valid_set = set(valid_book_nodes)
+    for node_id in valid_set:
+        for nb in graph.neighbors(node_id):
+            if nb in shared_subjects:
+                net.add_edge(node_id, nb, color="rgba(120, 110, 90, 0.35)", smooth=True)
+
+    net.set_options("""
+    {
+      "physics": {
+        "enabled": true,
+        "solver": "forceAtlas2Based",
+        "forceAtlas2Based": {
+          "gravitationalConstant": -60,
+          "centralGravity": 0.01,
+          "springLength": 150,
+          "springConstant": 0.04,
+          "avoidOverlap": 1
+        },
+        "stabilization": { "iterations": 300 }
+      },
+      "nodes": {
+        "font": { "size": 12, "face": "Arial", "color": "#4c483c", "strokeWidth": 0 }
+      },
+      "edges": {
+        "width": 1,
+        "smooth": { "type": "continuous" },
+        "color": {
+          "color": "rgba(120, 110, 90, 0.35)",
+          "highlight": "rgba(120, 110, 90, 0.6)",
+          "hover": "rgba(120, 110, 90, 0.6)"
+        }
+      },
+      "interaction": { "hover": true, "tooltipDelay": 200 }
+    }
+    """)
+
+    html = net.generate_html()
+    click_json = json.dumps(click_node_info)
+    hover_json = json.dumps(hover_node_info)
+    overlay_json = json.dumps(image_overlay_nodes)
+
+    injected = f"""
+    <style>
+      body {{ background-color: #ebe8dd; margin: 0; padding: 0; }}
+      #mynetwork {{ border: none !important; }}
+      .card {{ border: none !important; }}
+      ::-webkit-scrollbar {{ width: 5px; height: 5px; }}
+      ::-webkit-scrollbar-track {{ background: transparent; }}
+      ::-webkit-scrollbar-thumb {{ background: #c4b7a6; border-radius: 3px; }}
+      ::-webkit-scrollbar-thumb:hover {{ background: #a39988; }}
+    </style>
+    <div id="hover-card" style="
+        display: none; position: fixed;
+        background: #f5f2eb; border: 1px solid #c4b7a6; border-radius: 10px;
+        padding: 10px; width: 150px; z-index: 1000; pointer-events: none;
+        box-shadow: 4px 4px 12px rgba(0,0,0,0.15), -2px -2px 6px rgba(255,255,255,0.7);
+        font-family: Arial, sans-serif; font-size: 12px; color: #4c483c; line-height: 1.4;
+    "></div>
+    <script type="text/javascript">
+      var clickNodeInfo = {click_json};
+      var hoverNodeInfo = {hover_json};
+      var overlayNodes  = {overlay_json};
+      var hoverCard     = document.getElementById("hover-card");
+      var networkDiv    = document.getElementById("mynetwork");
+      networkDiv.style.opacity = "0";
+      networkDiv.style.transition = "opacity 0.6s ease-out";
+
+      setTimeout(function() {{
+        var allIds = network.body.data.nodes.getIds();
+        var updates = allIds.map(function(id) {{ return {{ id: id, x: 0, y: 0 }}; }});
+        network.body.data.nodes.update(updates);
+        network.startSimulation();
+        networkDiv.style.opacity = "1";
+
+        network.on("afterDrawing", function(ctx) {{
+          var selected = network.getSelectedNodes();
+          for (var nid in overlayNodes) {{
+            if (selected.indexOf(nid) >= 0) continue;
+            var n = network.body.nodes[nid];
+            if (!n) continue;
+            var w = n.width  || overlayNodes[nid].size * 2;
+            var h = n.height || overlayNodes[nid].size * 3;
+            ctx.save();
+            ctx.globalAlpha = 0.45;
+            ctx.fillStyle = overlayNodes[nid].color;
+            ctx.fillRect(n.x - w / 2, n.y - h / 2, w, h);
+            ctx.restore();
+          }}
+        }});
+
+        network.on("click", function(params) {{
+          if (params.nodes.length === 0) return;
+          var info = clickNodeInfo[params.nodes[0]];
+          if (!info) return;
+          window.parent.postMessage({{ type: "READ_BOOK_CLICK", bookId: info.bookId }}, "*");
+        }});
+
+        network.on("hoverNode", function(params) {{
+          var info = hoverNodeInfo[params.node];
+          if (!info) {{ hoverCard.style.display = "none"; return; }}
+          var stars = "";
+          if (info.rating) {{
+            for (var i = 0; i < 5; i++) {{ stars += i < info.rating ? "★" : "☆"; }}
+          }}
+          var imgHtml = info.cover_url
+            ? "<img src='" + info.cover_url + "' style='width:100%;border-radius:6px;margin-bottom:8px;display:block;'/>"
+            : "";
+          hoverCard.innerHTML = imgHtml +
+            "<strong style='font-size:13px;'>" + info.title + "</strong><br>" +
+            "<span style='color:#7a7060;font-size:11px;'>" + info.author + "</span>" +
+            (stars ? "<br><span style='color:#d4af7a;font-size:13px;margin-top:2px;display:block;'>" + stars + "</span>" : "");
+          hoverCard.style.display = "block";
+        }});
+
+        network.on("blurNode", function() {{ hoverCard.style.display = "none"; }});
+      }}, 300);
+
+      document.addEventListener("mousemove", function(e) {{
+        if (hoverCard.style.display === "none") return;
+        var x = e.clientX + 18, y = e.clientY - 20;
+        var cardH = hoverCard.offsetHeight || 300;
+        if (x + 170 > window.innerWidth)  x = e.clientX - 170;
+        if (y + cardH > window.innerHeight) y = e.clientY - cardH;
+        hoverCard.style.left = x + "px";
+        hoverCard.style.top  = y + "px";
+      }});
+    </script>
     """
 
     html = html.replace("</body>", injected + "\n</body>")

@@ -44,9 +44,11 @@ function App() {
   const [uploadProgress, setUploadProgress] = useState({ phase: "idle", current: 0, total: 0 });
 
   // Graph state
-  const [graphMode, setGraphMode] = useState("universe"); // "universe" | "book"
+  const [graphMode, setGraphMode] = useState("universe"); // "universe" | "cluster" | "network" | "book"
   const [graphLoading, setGraphLoading] = useState(false);
   const [universeVersion, setUniverseVersion] = useState(0);
+  const [clusterBookNodes, setClusterBookNodes] = useState([]);
+  const [selectedCluster, setSelectedCluster] = useState(null);
 
   // Book detail panel
   const [showDetailPanel, setShowDetailPanel] = useState(false);
@@ -74,8 +76,13 @@ function App() {
   // ── Graph URL ──────────────────────────────────────────────────────────────
   const getGraphUrl = () => {
     if (graphMode === "universe") return `${API}/universe_graph/?v=${universeVersion}`;
+    if (graphMode === "cluster") {
+      const nodesParam = encodeURIComponent(JSON.stringify(clusterBookNodes));
+      return `${API}/cluster_graph/?nodes=${nodesParam}`;
+    }
+    if (graphMode === "network") return `${API}/full_network/`;
     if (!selectedBook) return `${API}/universe_graph/`;
-    const base = `http://localhost:8000/api/graph/${encodeURIComponent("book::" + selectedBook.id)}`;
+    const base = `${API}/graph/${encodeURIComponent("book::" + selectedBook.id)}`;
     const params = new URLSearchParams();
     params.set("min_similarity", minSimilarity);
     if (hideStartedSeries) params.set("hide_started_series", "true");
@@ -96,12 +103,27 @@ function App() {
       if (!e.data?.type) return;
 
       if (e.data.type === "CLUSTER_CLICK") {
-        // Universe cluster clicked → switch to ego graph of representative book
-        const repId = e.data.representativeBook?.replace("book::", "");
-        const book = stats.books.find(b => b.id === repId);
-        if (book) setSelectedBook(book);
-        setGraphMode("book");
+        setClusterBookNodes(e.data.bookNodes || []);
+        setSelectedCluster({ name: e.data.clusterName, topGenres: e.data.topGenres });
+        setGraphMode("cluster");
         setGraphLoading(true);
+      } else if (e.data.type === "READ_BOOK_CLICK") {
+        // Book clicked in cluster or full network → open its ego-graph
+        const book = stats.books.find(b => b.id === e.data.bookId);
+        if (book) {
+          setSelectedBook(book);
+          setGraphMode("book");
+          setGraphLoading(true);
+          setPanelMode("read");
+          setShowDetailPanel(true);
+          setDetailLoading(true);
+          setBookDetail(null);
+          fetch(`${API}/book_details/${encodeURIComponent(book.id)}/`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => d && setBookDetail(d))
+            .catch(() => {})
+            .finally(() => setDetailLoading(false));
+        }
       } else if (e.data.type === "BOOK_CLICK") {
         // Graph recommendation node clicked → open detail panel
         setBookDetail({
@@ -494,6 +516,23 @@ function App() {
             </div>
 
             {/* Right: graph */}
+            <div className="graph-right-col">
+              {/* Graph mode tabs */}
+              <div className="graph-mode-tabs">
+                <button
+                  className={`upload-button small neu-card ${graphMode === "universe" || graphMode === "cluster" ? "neu-pressed" : ""}`}
+                  onClick={() => { setGraphMode("universe"); setGraphLoading(true); }}
+                >
+                  Universe
+                </button>
+                <button
+                  className={`upload-button small neu-card ${graphMode === "network" ? "neu-pressed" : ""}`}
+                  onClick={() => { setGraphMode("network"); setGraphLoading(true); }}
+                >
+                  Full Network
+                </button>
+              </div>
+
             <div className="graph-container neu-card">
               {/* Graph header */}
               <div className="graph-header">
@@ -507,6 +546,21 @@ function App() {
                         Still enriching your library ({bgProgress.current}/{bgProgress.total} books) — clusters will improve once complete.
                       </p>
                     )}
+                  </>
+                ) : graphMode === "cluster" ? (
+                  <div className="graph-header-book">
+                    <button className="back-to-universe-btn" onClick={() => { setGraphMode("universe"); setGraphLoading(true); }}>
+                      ← Reading Universe
+                    </button>
+                    <div>
+                      <h2 className="graph-title">{selectedCluster?.name || "Cluster"}</h2>
+                      <p className="graph-subtitle">Books in this taste cluster and how they connect through shared genres.</p>
+                    </div>
+                  </div>
+                ) : graphMode === "network" ? (
+                  <>
+                    <h2 className="graph-title">Full Network</h2>
+                    <p className="graph-subtitle">All your books and how they connect. Colors match your taste clusters. Click a book to explore recommendations.</p>
                   </>
                 ) : (
                   <div className="graph-header-book">
@@ -566,7 +620,10 @@ function App() {
                   <div className="graph-loading-overlay">
                     <div className="graph-loading-card neu-card">
                       <p className="graph-loading-label">
-                        {graphMode === "universe" ? "Mapping your reading universe…" : "Building your graph…"}
+                        {graphMode === "universe" ? "Mapping your reading universe…"
+                          : graphMode === "cluster" ? `Exploring ${selectedCluster?.name || "cluster"}…`
+                          : graphMode === "network" ? "Building your full network…"
+                          : "Building your graph…"}
                       </p>
                       <div className="loading-bar">
                         <div className="loading-bar-fill loading-bar-indeterminate" />
@@ -582,6 +639,7 @@ function App() {
                   title="Book Graph"
                 />
               </div>
+            </div>
             </div>
           </div>
         </div>

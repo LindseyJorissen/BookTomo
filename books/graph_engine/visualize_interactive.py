@@ -228,13 +228,15 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
         // Fade canvas in
         networkDiv.style.opacity = "1";
 
-        // Focus selected book
-        if (network.body.data.nodes.get("{focus_book_id}")) {{
-          network.focus("{focus_book_id}", {{
-            scale: 1.2,
-            animation: {{ duration: 600, easingFunction: "easeInOutQuad" }}
-          }});
-        }}
+        // Focus selected book after physics stabilises so the node is in its final position
+        network.once("stabilizationIterationsDone", function() {{
+          if (network.body.data.nodes.get("{focus_book_id}")) {{
+            network.focus("{focus_book_id}", {{
+              scale: 1.2,
+              animation: {{ duration: 600, easingFunction: "easeInOutQuad" }}
+            }});
+          }}
+        }});
 
         // ── Colour overlay on image nodes ──────────────────────────────────
         network.on("afterDrawing", function(ctx) {{
