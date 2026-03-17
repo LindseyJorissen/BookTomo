@@ -29,7 +29,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
         raise ValueError("Book not found in graph")
 
     net = Network(
-        height="600px",
+        height="670px",
         width="100%",
         bgcolor="#ebe8dd",
         font_color="#4c483c",
@@ -67,7 +67,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
                     "similarity_score": data.get("similarity_score", 0.65),
                 }
             else:
-                border_color = "#8fa6a0" if node == focus_book_id else "#b7c7c2"
+                border_color = "#ebe8dd" if node == focus_book_id else "#b7c7c2"
                 size = 35 if node == focus_book_id else 28
 
             hover_node_info[node] = {
@@ -182,6 +182,8 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
     injected_script = f"""
     <style>
       body {{ background-color: #ebe8dd; margin: 0; padding: 0; }}
+      #mynetwork {{ border: none !important; }}
+      .card {{ border: none !important; }}
       ::-webkit-scrollbar {{ width: 5px; height: 5px; }}
       ::-webkit-scrollbar-track {{ background: transparent; }}
       ::-webkit-scrollbar-thumb {{ background: #c4b7a6; border-radius: 3px; }}

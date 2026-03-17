@@ -255,7 +255,7 @@ def render_universe_graph(clusters: list, graph) -> str:
     switches to the ego-graph of the cluster's representative book.
     """
     net = Network(
-        height="600px",
+        height="670px",
         width="100%",
         bgcolor="#ebe8dd",
         font_color="#4c483c",
@@ -339,6 +339,8 @@ def render_universe_graph(clusters: list, graph) -> str:
     injected = f"""
     <style>
       body {{ background-color: #ebe8dd; margin: 0; padding: 0; }}
+      #mynetwork {{ border: none !important; }}
+      .card {{ border: none !important; }}
       ::-webkit-scrollbar {{ width: 5px; height: 5px; }}
       ::-webkit-scrollbar-track {{ background: transparent; }}
       ::-webkit-scrollbar-thumb {{ background: #c4b7a6; border-radius: 3px; }}

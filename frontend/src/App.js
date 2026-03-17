@@ -561,7 +561,7 @@ function App() {
               )}
 
               {/* Graph iframe */}
-              <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
+              <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
                 {graphLoading && (
                   <div className="graph-loading-overlay">
                     <div className="graph-loading-card neu-card">
@@ -578,7 +578,7 @@ function App() {
                   key={graphUrl}
                   src={graphUrl}
                   onLoad={() => setGraphLoading(false)}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none", borderRadius: "16px", marginTop: 0 }}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none", borderRadius: "16px" }}
                   title="Book Graph"
                 />
               </div>
