@@ -1,13 +1,13 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import List, Optional
 
 
 @dataclass
 class BookNode:
-    id: str               # Unieke sleutel: "Titel::Auteur"
+    id: str               # Unique key: "Title::Author"
     title: str
     author: str
-    rating: Optional[int] = None  # Goodreads-beoordeling (1–5), of None als niet beoordeeld
+    rating: Optional[int] = None  # Goodreads rating (1–5), or None if not rated
 
     # OpenLibrary data
     subjects: List[str] = field(default_factory=list)
@@ -21,3 +21,6 @@ class BookNode:
 
     # Inventaire data
     inventaire_uri: Optional[str] = None
+
+    # Goodreads data
+    goodreads_id: Optional[str] = None

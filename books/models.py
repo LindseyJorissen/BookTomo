@@ -1,11 +1,10 @@
 from django.db import models
-from django.utils import timezone
 
 
 class CachedBook(models.Model):
     """
-    Persistent database cache for book metadata fetched from OpenLibrary and Inventaire.
-    Records are considered fresh for 30 days; stale records are re-fetched on the next request.
+    Permanent database store for book metadata fetched from OpenLibrary and Inventaire.
+    Records are never expired — each book is fetched once and kept forever.
     """
 
     # --- Lookup key ---
@@ -36,10 +35,16 @@ class CachedBook(models.Model):
     ol_ratings_count = models.IntegerField(null=True, blank=True)
     want_to_read_count = models.IntegerField(null=True, blank=True)
 
-    # --- Cache tracking ---
+    # --- Google Books genres (permanent, keyed by title+author) ---
+    google_books_genres = models.JSONField(default=list)   # e.g. ["Fantasy", "Science Fiction"]
+    google_books_fetched = models.BooleanField(default=False)
+
+    # --- Read status ---
+    is_read = models.BooleanField(default=False)  # True = in user's Goodreads library
+
+    # --- Fetch tracking ---
     openlibrary_fetched = models.BooleanField(default=False)
     inventaire_fetched = models.BooleanField(default=False)
-    fetched_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = [("title", "author")]
@@ -47,5 +52,4 @@ class CachedBook(models.Model):
             models.Index(fields=["title", "author"]),
         ]
 
-    def is_stale(self):
-        return (timezone.now() - self.fetched_at).days > 30
+

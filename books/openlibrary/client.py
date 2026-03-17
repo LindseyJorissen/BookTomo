@@ -2,7 +2,7 @@ import hashlib
 import re
 
 import requests
-from django.core.cache import cache
+from django.core.cache import cache  # used for search/award/era results only
 
 BASE_URL = "https://openlibrary.org"
 
@@ -52,7 +52,39 @@ def _clean_subjects(raw_subjects):
     return clean[:12], list(awards.keys())
 
 
-def fetch_cover_for_read_book(title, author):
+def _store_book(title: str, author: str, cover_url: str = "", openlibrary_id: str = "", is_read: bool = False) -> None:
+    """Persist a minimal book record to CachedBook without overwriting richer data.
+
+    Used by recommendation fetch functions to ensure every book returned by OL
+    ends up in the DB (is_read=False), so the user can inspect and clean up.
+    Never downgrades is_read from True to False.
+    """
+    from books.models import CachedBook
+    try:
+        obj, created = CachedBook.objects.get_or_create(
+            title=title,
+            author=author,
+            defaults={
+                "cover_url": cover_url,
+                "openlibrary_id": openlibrary_id,
+                "is_read": is_read,
+            },
+        )
+        if not created:
+            changed = False
+            if is_read and not obj.is_read:
+                obj.is_read = True
+                changed = True
+            if not obj.cover_url and cover_url:
+                obj.cover_url = cover_url
+                changed = True
+            if changed:
+                obj.save(update_fields=[f for f in ["is_read", "cover_url"] if changed])
+    except Exception:
+        pass
+
+
+def fetch_cover_for_read_book(title, author, is_read: bool = False):
     """
     Fetches a cover URL via the OL search API (title + author query, limit 5).
     Falls back to the edition API if no cover_i is present in search results.
@@ -66,8 +98,8 @@ def fetch_cover_for_read_book(title, author):
         cached = CachedBook.objects.get(title=title, author=author)
         if cached.cover_url:
             return cached.cover_url
-        if cached.openlibrary_fetched and not cached.is_stale():
-            return None
+        if cached.openlibrary_fetched:
+            return None  # already tried OL, nothing found — permanent
     except CachedBook.DoesNotExist:
         pass
 
@@ -82,7 +114,7 @@ def fetch_cover_for_read_book(title, author):
     except Exception:
         obj, _ = CachedBook.objects.get_or_create(title=title, author=author)
         obj.openlibrary_fetched = True
-        obj.save(update_fields=["openlibrary_fetched", "fetched_at"])
+        obj.save(update_fields=["openlibrary_fetched"])
         return None
 
     docs = response.json().get("docs", [])
@@ -114,11 +146,13 @@ def fetch_cover_for_read_book(title, author):
     if not obj.cover_url and cover_url:
         obj.cover_url = cover_url
     obj.openlibrary_fetched = True
+    if is_read and not obj.is_read:
+        obj.is_read = True
     obj.save()
     return cover_url
 
 
-def fetch_work_data(title, author):
+def fetch_work_data(title, author, is_read: bool = False):
     """
     Fetch enriched OpenLibrary data for a single book.
 
@@ -135,10 +169,10 @@ def fetch_work_data(title, author):
     """
     from books.models import CachedBook
 
-    # DB cache check
+    # Permanent DB lookup — fetched once, kept forever
     try:
         cached = CachedBook.objects.get(title=title, author=author)
-        if cached.openlibrary_fetched and not cached.is_stale():
+        if cached.openlibrary_fetched:
             if not cached.openlibrary_id:
                 return None
             return {
@@ -177,7 +211,7 @@ def fetch_work_data(title, author):
     if not docs:
         obj, _ = CachedBook.objects.get_or_create(title=title, author=author)
         obj.openlibrary_fetched = True
-        obj.save(update_fields=["openlibrary_fetched", "fetched_at"])
+        obj.save(update_fields=["openlibrary_fetched"])
         return None
 
     doc = docs[0]
@@ -211,12 +245,14 @@ def fetch_work_data(title, author):
         "want_to_read_count": doc.get("want_to_read_count"),
     }
 
-    # Persist to DB — never overwrite a cover already found by a different source
+    # Persist to DB permanently — never overwrite a cover or is_read=True
     obj, _ = CachedBook.objects.get_or_create(title=title, author=author)
     obj.openlibrary_id = work_id
     obj.subjects = clean_subjects
     obj.award_slugs = award_slugs
     obj.openlibrary_fetched = True
+    if is_read and not obj.is_read:
+        obj.is_read = True
     if not obj.cover_url and cover_url:
         obj.cover_url = cover_url
     if not obj.description and description:
@@ -278,6 +314,8 @@ def fetch_books_by_subject(subject, limit=8):
 
     if books:
         cache.set(cache_key, books, 86400)
+        for b in books:
+            _store_book(b["title"], b["author"], b.get("cover_url") or "", b.get("openlibrary_id") or "")
     return books
 
 
@@ -326,6 +364,8 @@ def fetch_books_by_award(award_slug, limit=6):
 
     if books:
         cache.set(cache_key, books, 86400)
+        for b in books:
+            _store_book(b["title"], b["author"], b.get("cover_url") or "", b.get("openlibrary_id") or "")
     return books
 
 
@@ -388,6 +428,8 @@ def fetch_books_by_era(decade_start, primary_subject, limit=6):
 
     if books:
         cache.set(cache_key, books, 86400)
+        for b in books:
+            _store_book(b["title"], b["author"], b.get("cover_url") or "", b.get("openlibrary_id") or "")
     return books
 
 
@@ -427,4 +469,6 @@ def fetch_unread_books_by_author(author, read_titles, limit=10):
         })
 
     cache.set(cache_key, all_books, 86400)
+    for b in all_books:
+        _store_book(b["title"], b["author"], b.get("cover_url") or "", b.get("openlibrary_id") or "")
     return [b for b in all_books if normalize_title(b["title"]).lower() not in read_titles]

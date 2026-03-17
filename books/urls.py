@@ -6,4 +6,8 @@ urlpatterns = [
     path("upload_progress/", views.upload_progress_view),
     path("graph/<str:book_id>/", views.book_graph_view),
     path("covers/", views.book_covers_view),
+    path("universe_graph/", views.universe_graph_view),
+    path("book_details/<str:book_id>/", views.book_details_view),
+    path("best_recommendation/", views.best_recommendation_view),
+    path("filter_options/", views.filter_options_view),
 ]
