@@ -93,7 +93,10 @@ def extract_books_from_df(df):
 
         # Goodreads book ID — cast via int→str to strip any ".0" from pandas float parsing
         raw_gid = row.get("Book Id")
-        goodreads_id = str(int(raw_gid)) if raw_gid and str(raw_gid) not in ("", "nan") else None
+        try:
+            goodreads_id = str(int(raw_gid)) if raw_gid and str(raw_gid) not in ("", "nan") else None
+        except (ValueError, TypeError):
+            goodreads_id = None
 
         book = BookNode(
             id=f"{title}::{author}",

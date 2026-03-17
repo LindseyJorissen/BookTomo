@@ -45,6 +45,8 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
     hover_node_info = {}
     # Nodes that need a tinted colour overlay on their cover image
     image_overlay_nodes = {}
+    # Cover URL + size for each image node (used for custom cropped rendering)
+    cover_nodes = {}
 
     for node, data in ego.nodes(data=True):
         node_type = data.get("type")
@@ -80,6 +82,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
 
             if cover_url and data.get("unread"):
                 image_overlay_nodes[node] = {"color": border_color, "size": size}
+                cover_nodes[node] = {"url": cover_url, "size": size}
                 net.add_node(
                     node,
                     label=label,
@@ -178,6 +181,7 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
     click_node_info_json = json.dumps(click_node_info)
     hover_node_info_json = json.dumps(hover_node_info)
     overlay_nodes_json = json.dumps(image_overlay_nodes)
+    cover_nodes_json = json.dumps(cover_nodes)
 
     injected_script = f"""
     <style>
@@ -213,6 +217,18 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
       var overlayNodes  = {overlay_nodes_json};
       var hoverCard     = document.getElementById("hover-card");
 
+      // Preload cover images for cropped rendering
+      var coverNodes = {{}};
+      var rawCoverNodes = {cover_nodes_json};
+      for (var _nid in rawCoverNodes) {{
+        (function(nid, info) {{
+          var img = new Image();
+          img.onload = function() {{ if (typeof network !== "undefined") network.redraw(); }};
+          img.src = info.url;
+          coverNodes[nid] = {{ imgEl: img, size: info.size }};
+        }})(_nid, rawCoverNodes[_nid]);
+      }}
+
       // ── Graph load animation ─────────────────────────────────────────────
       var networkDiv = document.getElementById("mynetwork");
       networkDiv.style.opacity = "0";
@@ -243,15 +259,65 @@ def visualize_book_ego_graph_interactive(graph, focus_book_id):
         network.once("stabilized", _doFocus);
         setTimeout(_doFocus, 4000); // fallback if stabilized never fires
 
-        // ── Glowing gold border around recommendation image nodes ──────────
+        // ── Cover image cropping + glowing gold border ────────────────────
         network.on("afterDrawing", function(ctx) {{
           var selected = network.getSelectedNodes();
+
+          // Pass 1: draw cover images cropped to fill a portrait rectangle
+          for (var nid in coverNodes) {{
+            var n = network.body.nodes[nid];
+            if (!n) continue;
+            var info = coverNodes[nid];
+            var img = info.imgEl;
+            if (!img.complete || !img.naturalWidth) continue;
+
+            // Fixed portrait dimensions — don't use vis.js square n.width/n.height
+            var w = info.size * 2;
+            var h = info.size * 3;
+            var x = n.x - w / 2;
+            var y = n.y - h / 2;
+
+            var imgW = img.naturalWidth;
+            var imgH = img.naturalHeight;
+            var targetAspect = w / h;  // ~0.67 portrait
+            var imgAspect    = imgW / imgH;
+
+            var sx, sy, sw, sh;
+            if (imgAspect > targetAspect) {{
+              // landscape/square image — fill height, crop sides
+              sh = imgH;
+              sw = Math.round(imgH * targetAspect);
+              sx = Math.round((imgW - sw) / 2);
+              sy = 0;
+            }} else {{
+              // portrait image — fill width, crop top/bottom
+              sw = imgW;
+              sh = Math.round(imgW / targetAspect);
+              sx = 0;
+              sy = Math.round((imgH - sh) / 2);
+            }}
+
+            ctx.save();
+            ctx.globalAlpha = 1;
+            ctx.globalCompositeOperation = "source-over";
+            // Clear a square large enough to cover vis.js's own image rendering
+            ctx.fillStyle = "#ebe8dd";
+            ctx.fillRect(n.x - info.size * 2, n.y - info.size * 2, info.size * 4, info.size * 4);
+            // Draw the portrait-cropped image
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+            ctx.restore();
+          }}
+
+          // Pass 2: glow border matching the same portrait rectangle
           for (var nid in overlayNodes) {{
             if (selected.indexOf(nid) >= 0) continue;
             var n = network.body.nodes[nid];
             if (!n) continue;
-            var w = n.width  || overlayNodes[nid].size * 2;
-            var h = n.height || overlayNodes[nid].size * 3;
+            var w = overlayNodes[nid].size * 2;
+            var h = overlayNodes[nid].size * 3;
             ctx.save();
             ctx.shadowColor = overlayNodes[nid].color;
             ctx.shadowBlur = 18;

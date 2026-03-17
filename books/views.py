@@ -177,7 +177,10 @@ def upload_goodreads(request):
             if not wt or not wa:
                 continue
             raw_gid = wtr_row.get("Book Id")
-            wgid = str(int(raw_gid)) if raw_gid and str(raw_gid) not in ("", "nan") else None
+            try:
+                wgid = str(int(raw_gid)) if raw_gid and str(raw_gid) not in ("", "nan") else None
+            except (ValueError, TypeError):
+                wgid = None
             wtr_books.append(BookNode(id=f"{wt}::{wa}", title=wt, author=wa, goodreads_id=wgid))
     state.WANT_TO_READ_NODES = wtr_books
 
